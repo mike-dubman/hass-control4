@@ -61,6 +61,7 @@ async def async_setup_entry(
 		and item.get("id")
 		and _is_cover_proxy(item.get("proxy"))
 	]
+	_LOGGER.warning("Control4: discovered %d potential cover items", len(cover_items))
 
 	entity_list: list[Control4Cover] = []
 
@@ -105,6 +106,7 @@ async def async_setup_entry(
 		)
 
 	async_add_entities(entity_list, True)
+	_LOGGER.warning("Control4: added %d cover entities", len(entity_list))
 
 
 class Control4Cover(Control4Entity, CoverEntity):
@@ -115,6 +117,34 @@ class Control4Cover(Control4Entity, CoverEntity):
 		| CoverEntityFeature.CLOSE
 		| CoverEntityFeature.STOP
 	)
+
+	def __init__(
+		self,
+		entry_data: dict,
+		entry: ConfigEntry,
+		name: str,
+		idx: int,
+		device_name: str | None,
+		device_manufacturer: str | None,
+		device_model: str | None,
+		device_id: int,
+		device_area: str,
+		device_attributes: dict,
+	) -> None:
+		super().__init__(
+			entry_data,
+			entry,
+			name,
+			idx,
+			device_name,
+			device_manufacturer,
+			device_model,
+			device_id,
+			device_area,
+			device_attributes,
+		)
+		# Keep covers usable even if websocket hasn't delivered state yet
+		self._attr_available = True
 
 	def create_api_object(self) -> C4Blind:
 		"""Create a pyControl4 device object.
@@ -166,3 +196,7 @@ class Control4Cover(Control4Entity, CoverEntity):
 			| CoverEntityFeature.STOP
 		)
 
+	async def _update_callback(self, device, message):
+		"""Keep covers available regardless of websocket drops."""
+		self._attr_available = True
+		self.async_write_ha_state()

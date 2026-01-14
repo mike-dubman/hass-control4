@@ -189,7 +189,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        # Do not assign to self.config_entry; it's a read-only property in HA.
+        self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Handle options flow."""
@@ -199,49 +200,73 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         # TODO: figure out how to accept empty strings to disable modes
         # TODO: figure out how to only show alarm options if a alarm_control_panel entity exists
-        self.entry_data = self.hass.data[DOMAIN][self.config_entry.entry_id]
-        _LOGGER.debug(self.entry_data[CONF_ALARM_ARM_STATES])
-        data_schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_SCAN_INTERVAL,
-                    default=self.config_entry.options.get(
-                        CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                    ),
-                ): vol.All(cv.positive_int, vol.Clamp(min=MIN_SCAN_INTERVAL)),
-                vol.Optional(
-                    CONF_ALARM_AWAY_MODE,
-                    default=self.config_entry.options.get(
-                        CONF_ALARM_AWAY_MODE, DEFAULT_ALARM_AWAY_MODE
-                    ),
-                ): vol.In(self.entry_data[CONF_ALARM_ARM_STATES]),
-                vol.Optional(
-                    CONF_ALARM_HOME_MODE,
-                    default=self.config_entry.options.get(
-                        CONF_ALARM_HOME_MODE, DEFAULT_ALARM_HOME_MODE
-                    ),
-                ): vol.In(self.entry_data[CONF_ALARM_ARM_STATES]),
-                vol.Optional(
-                    CONF_ALARM_NIGHT_MODE,
-                    default=self.config_entry.options.get(
-                        CONF_ALARM_NIGHT_MODE, DEFAULT_ALARM_NIGHT_MODE
-                    ),
-                ): vol.In(self.entry_data[CONF_ALARM_ARM_STATES]),
-                vol.Optional(
-                    CONF_ALARM_CUSTOM_BYPASS_MODE,
-                    default=self.config_entry.options.get(
-                        CONF_ALARM_CUSTOM_BYPASS_MODE, DEFAULT_ALARM_CUSTOM_BYPASS_MODE
-                    ),
-                ): vol.In(self.entry_data[CONF_ALARM_ARM_STATES]),
-                vol.Optional(
-                    CONF_ALARM_VACATION_MODE,
-                    default=self.config_entry.options.get(
-                        CONF_ALARM_VACATION_MODE, DEFAULT_ALARM_VACATION_MODE
-                    ),
-                ): vol.In(self.entry_data[CONF_ALARM_ARM_STATES]),
-            },
-            required=False,
+        self.entry_data = self.hass.data[DOMAIN][self._config_entry.entry_id]
+
+        # Minimal approach: use existing cached arm states only
+        arm_state_choices = set(self.entry_data.get(CONF_ALARM_ARM_STATES, [])) or {
+            DEFAULT_ALARM_AWAY_MODE
+        }
+
+        # Determine if a security panel is effectively present (has real arm states)
+        has_security = any(
+            x.strip() and x.strip() != DEFAULT_ALARM_AWAY_MODE for x in arm_state_choices
         )
+
+        # Always include scan interval; include alarm options only if we have a panel
+        if has_security:
+            data_schema = vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_SCAN_INTERVAL,
+                        default=self._config_entry.options.get(
+                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                        ),
+                    ): vol.All(cv.positive_int, vol.Clamp(min=MIN_SCAN_INTERVAL)),
+                    vol.Optional(
+                        CONF_ALARM_AWAY_MODE,
+                        default=self._config_entry.options.get(
+                            CONF_ALARM_AWAY_MODE, DEFAULT_ALARM_AWAY_MODE
+                        ),
+                    ): vol.In(sorted(arm_state_choices)),
+                    vol.Optional(
+                        CONF_ALARM_HOME_MODE,
+                        default=self._config_entry.options.get(
+                            CONF_ALARM_HOME_MODE, DEFAULT_ALARM_HOME_MODE
+                        ),
+                    ): vol.In(sorted(arm_state_choices)),
+                    vol.Optional(
+                        CONF_ALARM_NIGHT_MODE,
+                        default=self._config_entry.options.get(
+                            CONF_ALARM_NIGHT_MODE, DEFAULT_ALARM_NIGHT_MODE
+                        ),
+                    ): vol.In(sorted(arm_state_choices)),
+                    vol.Optional(
+                        CONF_ALARM_CUSTOM_BYPASS_MODE,
+                        default=self._config_entry.options.get(
+                            CONF_ALARM_CUSTOM_BYPASS_MODE, DEFAULT_ALARM_CUSTOM_BYPASS_MODE
+                        ),
+                    ): vol.In(sorted(arm_state_choices)),
+                    vol.Optional(
+                        CONF_ALARM_VACATION_MODE,
+                        default=self._config_entry.options.get(
+                            CONF_ALARM_VACATION_MODE, DEFAULT_ALARM_VACATION_MODE
+                        ),
+                    ): vol.In(sorted(arm_state_choices)),
+                },
+                required=False,
+            )
+        else:
+            data_schema = vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_SCAN_INTERVAL,
+                        default=self._config_entry.options.get(
+                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                        ),
+                    ): vol.All(cv.positive_int, vol.Clamp(min=MIN_SCAN_INTERVAL)),
+                },
+                required=False,
+            )
         return self.async_show_form(step_id="init", data_schema=data_schema)
 
 

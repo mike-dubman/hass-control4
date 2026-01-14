@@ -73,6 +73,7 @@ PLATFORMS = [
     Platform.SWITCH,
     Platform.FAN,
     Platform.CLIMATE,
+    Platform.COVER,
 ]
 
 
