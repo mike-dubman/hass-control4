@@ -26,17 +26,13 @@ async def async_setup_entry(
     entry_data = hass.data[DOMAIN][entry.entry_id]
     all_items: list[dict[str, Any]] = entry_data[CONF_DIRECTOR_ALL_ITEMS]
 
-    # Identify Lua-driven "trigger" devices (common pattern: dynalite_trigger via lua_gen)
+    # Identify only explicit Dynalite Trigger devices to avoid noisy unknown sensors
     lua_trigger_items: list[dict[str, Any]] = [
         item
         for item in all_items
         if item.get("type") == CONTROL4_ENTITY_TYPE
         and item.get("id")
-        and (
-            item.get("control") == LUA_CONTROL
-            or item.get("protocolControl") == LUA_CONTROL
-            or item.get("proxy") == PROXY_DYNALITE_TRIGGER
-        )
+        and item.get("proxy") == PROXY_DYNALITE_TRIGGER
     ]
 
     # Build quick lookup by id for parent data
@@ -131,10 +127,13 @@ class Control4LuaSensor(Control4Entity, SensorEntity):
             device_attributes,
         )
         self._proxy = proxy or ""
-        self._attr_available = True
+        # Start unavailable; we will mark available on first meaningful event
+        self._attr_available = False
         self._event_name_by_id: dict[int, str] = event_name_by_id or {}
         # Attempt to initialize native value from known fields if present
         self._derive_native_value_from_attributes()
+        if self._attr_native_value is not None:
+            self._attr_available = True
 
     def _derive_native_value_from_attributes(self) -> None:
         """Derive native value from existing attributes."""
@@ -183,7 +182,6 @@ class Control4LuaSensor(Control4Entity, SensorEntity):
         if message is False:
             self._attr_available = False
         elif message.get("evtName") == "OnDataToUI":
-            self._attr_available = True
             data = message.get("data", {})
 
             # Common pattern: devicecommand payloads for Lua drivers
@@ -196,10 +194,14 @@ class Control4LuaSensor(Control4Entity, SensorEntity):
                     await self._data_to_extra_state_attributes(params)
                     # Try to detect/derive a native value
                     self._derive_native_value_from_attributes()
+                    if self._attr_native_value is not None:
+                        self._attr_available = True
             else:
                 # Fallback: record any other key/values
                 await self._data_to_extra_state_attributes(data)
                 self._derive_native_value_from_attributes()
+                if self._attr_native_value is not None:
+                    self._attr_available = True
 
         self.async_write_ha_state()
 
