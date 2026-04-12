@@ -8,9 +8,22 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
 
-from .const import CONF_DIRECTOR, DOMAIN
+from .const import CONF_DIRECTOR, CONF_DIRECTOR_ALL_ITEMS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+DYNALITE_TRIGGER_PROXY = "dynalite_trigger"
+
+
+def director_has_dynalite_triggers(entry_data: dict[str, Any] | None) -> bool:
+    """True if Director inventory includes at least one dynalite_trigger with an id."""
+    if not entry_data:
+        return False
+    all_items = entry_data.get(CONF_DIRECTOR_ALL_ITEMS) or []
+    return any(
+        item.get("proxy") == DYNALITE_TRIGGER_PROXY and item.get("id")
+        for item in all_items
+    )
 
 
 async def director_get_entry_variables(
@@ -25,6 +38,7 @@ async def director_get_entry_variables(
         result[item["varName"]] = item["value"]
 
     return result
+
 
 async def update_variables_for_config_entry(
     hass: HomeAssistant, entry: ConfigEntry, variable_names: Set[str]
