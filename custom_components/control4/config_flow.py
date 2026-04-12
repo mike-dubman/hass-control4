@@ -28,6 +28,7 @@ from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
     entity_registry as er,
+    selector,
 )
 from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.network import get_url
@@ -45,6 +46,7 @@ from .const import (
     CONF_DYNALITE_HOST,
     CONF_DYNALITE_PARSE_LAYOUT,
     CONF_DYNALITE_PORT,
+    CONF_ENTITY_PREPEND_PARENT_NAME,
     DEFAULT_DYNALITE_PARSE_LAYOUT,
     DYNALITE_PARSE_LAYOUT_BYTES_2_3,
     DYNALITE_PARSE_LAYOUT_DYNET,
@@ -54,6 +56,7 @@ from .const import (
     DEFAULT_ALARM_HOME_MODE,
     DEFAULT_ALARM_NIGHT_MODE,
     DEFAULT_ALARM_VACATION_MODE,
+    DEFAULT_ENTITY_PREPEND_PARENT_NAME,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_DYNALITE_PORT,
     DOMAIN,
@@ -577,7 +580,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_configure(self, user_input=None):
-        """Handle the configure-options form (scan interval, alarm modes, Dynalite TCP)."""
+        """Handle the configure-options form (scan interval, alarm modes, Dynalite TCP, entity naming)."""
         if user_input is not None:
             _LOGGER.debug(user_input)
             entry_data_submit = (
@@ -611,6 +614,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         # Determine if a security panel is effectively present (has real arm states)
         has_security = any(
             x.strip() and x.strip() != DEFAULT_ALARM_AWAY_MODE for x in arm_state_choices
+        )
+
+        prepend_default = self._config_entry.options.get(
+            CONF_ENTITY_PREPEND_PARENT_NAME, DEFAULT_ENTITY_PREPEND_PARENT_NAME
         )
 
         # Base schema: scan interval; alarm options only if we have a panel
@@ -657,6 +664,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     ): vol.In(sorted(arm_state_choices)),
                 }
             )
+
+        schema_dict[
+            vol.Optional(
+                CONF_ENTITY_PREPEND_PARENT_NAME,
+                default=prepend_default,
+            )
+        ] = selector.BooleanSelector()
+
         # Dynalite: TCP only; show enable toggle only when project has dynalite_trigger devices
         has_dynalite = director_has_dynalite_triggers(self.entry_data)
         desc: dict[str, str] = {}

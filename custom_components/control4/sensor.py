@@ -15,7 +15,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import Control4Entity
-from .const import DOMAIN, CONTROL4_ENTITY_TYPE, CONF_DIRECTOR_ALL_ITEMS
+from .const import (
+    CONF_DIRECTOR_ALL_ITEMS,
+    CONF_ENTITY_PREPEND_PARENT_NAME,
+    CONTROL4_ENTITY_TYPE,
+    DEFAULT_ENTITY_PREPEND_PARENT_NAME,
+    DOMAIN,
+)
 from .director_utils import director_get_entry_variables
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,6 +124,7 @@ async def async_setup_entry(
                             entry=entry,
                             name=sm.name_suffix,
                             idx=item_id,
+                            item_display_name=str(item.get("name") or ""),
                             device_name=item_device_name,
                             device_manufacturer=item_manufacturer,
                             device_model=item_model,
@@ -159,8 +166,7 @@ async def async_setup_entry(
 class Control4AttrSensor(Control4Entity, SensorEntity):  # type: ignore[misc]
     """Sensor exposing a Control4 device attribute via WebSocket."""
 
-    _attr_has_entity_name = True
-    _attr_should_poll = False 
+    _attr_should_poll = False
 
     def __init__(
         self,
@@ -175,6 +181,7 @@ class Control4AttrSensor(Control4Entity, SensorEntity):  # type: ignore[misc]
         device_area: str,
         device_attributes: dict,
         sensor_map: _SensorMap,
+        item_display_name: str,
     ) -> None:
         super().__init__(
             entry_data,
@@ -195,6 +202,10 @@ class Control4AttrSensor(Control4Entity, SensorEntity):  # type: ignore[misc]
         self._attr_device_class = sensor_map.device_class
         self._attr_state_class = sensor_map.state_class
         self._attr_entity_registry_visible_default = False
+        if not entry_data.get(
+            CONF_ENTITY_PREPEND_PARENT_NAME, DEFAULT_ENTITY_PREPEND_PARENT_NAME
+        ):
+            self._attr_name = f"{item_display_name} {sensor_map.name_suffix}".strip()
 
     async def async_added_to_hass(self) -> None:
         """Subscribe to the existing WebSocket."""
