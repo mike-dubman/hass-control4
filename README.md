@@ -1,12 +1,6 @@
 # hass-control4 (vendor fork)
 
-Vendor fork of [lawtancool/hass-control4](https://github.com/lawtancool/hass-control4), maintained for faster delivery of features not yet merged upstream. Install from the **`release`** branch (default) or tag **v1.8.0**.
-
-This fork includes upstream **1.7.0** plus:
-
-- [#68](https://github.com/lawtancool/hass-control4/pull/68) — Import Control4 `roomName` / `floorName` as Home Assistant areas and floors
-- [#69](https://github.com/lawtancool/hass-control4/pull/69) — Dynalite gateway events for Control4 trigger sensors
-- [#70](https://github.com/lawtancool/hass-control4/pull/70) — Configurable entity naming (prepend parent device name or not)
+Vendor fork of [lawtancool/hass-control4](https://github.com/lawtancool/hass-control4), maintained for faster delivery of features not yet merged upstream. Install from the **`release`** branch (default) or the latest [release tag](https://github.com/mike-dubman/hass-control4/releases).
 
 This custom integration for Home Assistant allows control of Control4 lights, locks (only locks that are relay-based in Control4), alarm control panels, door/window/motion sensors (as binary sensors), thermostats, fans, relay devices (as switches), and blinds/shades (as covers, stateless open/close/stop).
 
@@ -36,7 +30,7 @@ In the dialog that appears, choose the Control4 alarm arming modes that you want
 | `master` | Tracks [lawtancool/hass-control4](https://github.com/lawtancool/hass-control4) `master` |
 | `release` | Shipped vendor line (default branch, HACS installs, version tags) |
 
-For bugs in features that exist upstream, consider opening issues on [lawtancool/hass-control4](https://github.com/lawtancool/hass-control4/issues). For vendor-only features (PRs 68–70), use [this repo's issues](https://github.com/mike-dubman/hass-control4/issues).
+For bugs in features that exist upstream, consider opening issues on [lawtancool/hass-control4](https://github.com/lawtancool/hass-control4/issues). For vendor-only features, use [this repo's issues](https://github.com/mike-dubman/hass-control4/issues).
 
 ## Disclaimer
 
