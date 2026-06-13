@@ -1,0 +1,75 @@
+name: PR debug drop
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - release
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pr-debug-drop:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Compute debug drop tag
+        id: meta
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          BASE=$(jq -r .version custom_components/control4/manifest.json)
+          SHORT_SHA=${GITHUB_SHA:0:7}
+          VERSION="${BASE}-pr${PR_NUMBER}.${SHORT_SHA}"
+          TAG="v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          NOTES="Debug drop for PR #${PR_NUMBER}: ${PR_TITLE}
+
+          Install via HACS (enable Show beta versions for this repository) or update.install with version ${TAG} or commit ${TARGET_SHA}."
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes
+          fi
+
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "$NOTES" \
+            --prerelease \
+            --target "$TARGET_SHA"
+
+      - name: Update PR comment with install steps
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: hacs-debug-drop
+          message: |
+            ## HACS debug drop
+
+            | | |
+            |---|---|
+            | **Tag** | `${{ steps.meta.outputs.tag }}` |
+            | **Commit** | `${{ github.event.pull_request.head.sha }}` |
+
+            ### Install on Home Assistant
+
+            1. **HACS** → Control4 repo → enable **Show beta versions**
+            2. **Control4** update entity → **Install** → version `${{ steps.meta.outputs.tag }}`
+            3. **Restart Home Assistant**
+
+            Or **Developer Tools** → **Actions** → `update.install` on the Control4 update entity with `version`: `${{ github.event.pull_request.head.sha }}`
