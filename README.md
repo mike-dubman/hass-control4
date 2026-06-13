@@ -1,21 +1,26 @@
 # hass-control4 (vendor fork)
 
-Vendor fork of [lawtancool/hass-control4](https://github.com/lawtancool/hass-control4), maintained for faster delivery of features not yet merged upstream. Install from the **`release`** branch (default) or the latest [release tag](https://github.com/mike-dubman/hass-control4/releases).
+Vendor fork of [lawtancool/hass-control4](https://github.com/lawtancool/hass-control4), maintained for faster delivery of features not yet merged upstream.
+
+**Versioning:** This fork uses **CalVer** (`YYYY.MM.DD.N`), not upstream semver. Example: `2026.06.13.1` = first build on 2026-06-13. See [Releases](https://github.com/mike-dubman/hass-control4/releases) for changelogs (including which upstream commit each build is based on).
 
 This custom integration for Home Assistant allows control of Control4 lights, locks (only locks that are relay-based in Control4), alarm control panels, door/window/motion sensors (as binary sensors), thermostats, fans, relay devices (as switches), and blinds/shades (as covers, stateless open/close/stop).
 
 ## Installation
 
-First, add this repository as a [custom repository](https://www.hacs.xyz/docs/faq/custom_repositories/) in HACS:
+This repo is **not** in the default HACS store. Add it as a custom repository first:
 
-- URL: `https://github.com/mike-dubman/hass-control4`
-- Category: **Integration**
+1. **HACS** → **Integrations** → **⋮** → **Custom repositories**
+2. Repository: `https://github.com/mike-dubman/hass-control4`
+3. Category: **Integration** → **Add**
+4. **HACS** → **Integrations** → **Explore & Download Repositories** → find **Control4** → **Download**
+5. **Restart Home Assistant**
 
-Then install through HACS:
-
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mike-dubman&repository=hass-control4)
+Install from the **`release`** branch (default) or the latest [release tag](https://github.com/mike-dubman/hass-control4/releases).
 
 Once installed, follow the same setup instructions as the default integration: https://www.home-assistant.io/integrations/control4
+
+If the HACS readme looks stale after an update: **HACS** → **⋮** → **Clear cache**, restart HA, then **Redownload** the integration.
 
 ### Additional configuration required for alarm control panel
 
