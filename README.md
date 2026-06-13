@@ -16,7 +16,7 @@ This repo is **not** in the default HACS store. Add it as a custom repository fi
 4. **HACS** → **Integrations** → **Explore & Download Repositories** → find **Control4** → **Download**
 5. **Restart Home Assistant**
 
-Install from the **`release`** branch (default) or the latest [release tag](https://github.com/mike-dubman/hass-control4/releases).
+Install the latest [release tag](https://github.com/mike-dubman/hass-control4/releases) (stable). Open pull requests against `release` publish a **pre-release debug drop** you can install from HACS with **Show beta versions** enabled.
 
 Once installed, follow the same setup instructions as the default integration: https://www.home-assistant.io/integrations/control4
 
@@ -33,7 +33,11 @@ In the dialog that appears, choose the Control4 alarm arming modes that you want
 | Branch | Purpose |
 |--------|---------|
 | `master` | Tracks [lawtancool/hass-control4](https://github.com/lawtancool/hass-control4) `master` |
-| `release` | Shipped vendor line (default branch, HACS installs, version tags) |
+| `release` | Shipped vendor line (default branch; PRs target here; merges publish stable releases) |
+
+### Testing a pull request
+
+Each PR to `release` triggers a pre-release tag (`v{version}-pr{number}.{sha}`). In HACS, enable **Show beta versions** for this repository, then install that tag from the Control4 update entity before merging.
 
 For bugs in features that exist upstream, consider opening issues on [lawtancool/hass-control4](https://github.com/lawtancool/hass-control4/issues). For vendor-only features, use [this repo's issues](https://github.com/mike-dubman/hass-control4/issues).
 
