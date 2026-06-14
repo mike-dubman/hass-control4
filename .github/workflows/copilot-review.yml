@@ -20,7 +20,7 @@ jobs:
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
-            const { data } = await github.graphql(
+            const result = await github.graphql(
               `query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
                   pullRequest(number: $number) {
@@ -42,8 +42,8 @@ jobs:
               }
             );
 
-            const pullRequestId = data.repository.pullRequest.id;
-            const alreadyRequested = data.repository.pullRequest.reviewRequests.nodes.some(
+            const pullRequestId = result.repository.pullRequest.id;
+            const alreadyRequested = result.repository.pullRequest.reviewRequests.nodes.some(
               (node) => node.requestedReviewer?.login === "Copilot"
             );
 
@@ -71,7 +71,7 @@ jobs:
             const prNumber = context.payload.pull_request.number;
             await new Promise((resolve) => setTimeout(resolve, 15000));
 
-            const { data } = await github.graphql(
+            const result = await github.graphql(
               `query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
                   pullRequest(number: $number) {
@@ -98,7 +98,7 @@ jobs:
               }
             );
 
-            const pr = data.repository.pullRequest;
+            const pr = result.repository.pullRequest;
             const copilotReview = pr.reviews.nodes.some(
               (review) => review.author?.login === "copilot-pull-request-reviewer"
             );
