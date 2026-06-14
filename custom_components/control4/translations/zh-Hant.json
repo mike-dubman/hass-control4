@@ -1,31 +1,31 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "\u88dd\u7f6e\u5df2\u7d93\u8a2d\u5b9a\u5b8c\u6210"
-        },
-        "error": {
-            "cannot_connect": "\u9023\u7dda\u5931\u6557",
-            "invalid_auth": "\u9a57\u8b49\u78bc\u7121\u6548",
-            "unknown": "\u672a\u9810\u671f\u932f\u8aa4"
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "host": "IP \u4f4d\u5740",
-                    "password": "\u5bc6\u78bc",
-                    "username": "\u4f7f\u7528\u8005\u540d\u7a31"
-                },
-                "description": "\u8acb\u8f38\u5165 Control4 \u5e33\u865f\u8cc7\u8a0a\u8207\u672c\u5730\u7aef\u63a7\u5236\u5668 IP \u4f4d\u5740\u3002"
-            }
-        }
+  "config": {
+    "abort": {
+      "Device is already configured": "裝置已經設定完成"
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "scan_interval": "\u66f4\u65b0\u9593\u9694\u79d2\u6578"
-                }
-            }
-        }
+    "error": {
+      "Failed to connect": "連線失敗",
+      "Invalid authentication": "驗證碼無效",
+      "Unknown error": "未預期錯誤"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "IP address": "IP 位址",
+          "Username": "使用者名稱",
+          "Password": "密碼"
+        },
+        "description": "請輸入 Control4 帳號資訊與本地端控制器 IP 位址。"
+      }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "更新間隔秒數"
+        }
+      }
+    }
+  }
 }

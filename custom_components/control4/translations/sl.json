@@ -1,31 +1,31 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Naprava je \u017ee konfigurirana"
-        },
-        "error": {
-            "cannot_connect": "Povezava ni uspela",
-            "invalid_auth": "Neveljavna avtentikacija",
-            "unknown": "Nepri\u010dakovana napaka"
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "host": "IP naslov",
-                    "password": "Geslo",
-                    "username": "Uporabni\u0161ko ime"
-                },
-                "description": "Vnesite podatke o ra\u010dunu Control4 in IP naslov lokalnega regulatorja."
-            }
-        }
+  "config": {
+    "abort": {
+      "Device is already configured": "Naprava je že konfigurirana"
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "scan_interval": "Sekunde med posodobitvami"
-                }
-            }
-        }
+    "error": {
+      "Failed to connect": "Povezava ni uspela",
+      "Invalid authentication": "Neveljavna avtentikacija",
+      "Unknown error": "Nepričakovana napaka"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "IP address": "IP naslov",
+          "Username": "Uporabniško ime",
+          "Password": "Geslo"
+        },
+        "description": "Vnesite podatke o računu Control4 in IP naslov lokalnega regulatorja."
+      }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Sekunde med posodobitvami"
+        }
+      }
+    }
+  }
 }

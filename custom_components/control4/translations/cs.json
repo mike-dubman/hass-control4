@@ -1,31 +1,31 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Za\u0159\u00edzen\u00ed je ji\u017e nastaveno"
-        },
-        "error": {
-            "cannot_connect": "Nepoda\u0159ilo se p\u0159ipojit",
-            "invalid_auth": "Neplatn\u00e9 ov\u011b\u0159en\u00ed",
-            "unknown": "Neo\u010dek\u00e1van\u00e1 chyba"
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "host": "IP adresa",
-                    "password": "Heslo",
-                    "username": "U\u017eivatelsk\u00e9 jm\u00e9no"
-                },
-                "description": "Zadejte pros\u00edm \u00fadaje o sv\u00e9m \u00fa\u010dtu Control4 a IP adresu m\u00edstn\u00edho ovlada\u010de."
-            }
-        }
+  "config": {
+    "abort": {
+      "Device is already configured": "Zařízení je již nastaveno"
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "scan_interval": "Po\u010det sekund mezi aktualizacemi"
-                }
-            }
-        }
+    "error": {
+      "Failed to connect": "Nepodařilo se připojit",
+      "Invalid authentication": "Neplatné ověření",
+      "Unknown error": "Neočekávaná chyba"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "IP address": "IP adresa",
+          "Username": "Uživatelské jméno",
+          "Password": "Heslo"
+        },
+        "description": "Zadejte prosím údaje o svém účtu Control4 a IP adresu místního ovladače."
+      }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Počet sekund mezi aktualizacemi"
+        }
+      }
+    }
+  }
 }

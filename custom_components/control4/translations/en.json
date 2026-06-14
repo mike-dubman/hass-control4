@@ -1,28 +1,29 @@
 {
   "config": {
     "abort": {
-      "already_configured": "Device is already configured",
-      "reauth_successful": "Reauthentication was successful"
+      "Device is already configured": "Device is already configured",
+      "Reauthentication was successful": "Reauthentication was successful"
     },
     "error": {
-      "cannot_connect": "Failed to connect",
-      "invalid_auth": "Invalid authentication",
-      "unknown": "Unknown error"
+      "Failed to connect": "Failed to connect",
+      "Invalid authentication": "Invalid authentication",
+      "Unknown error": "Unknown error",
+      "Reauthentication failed": "Reauthentication failed"
     },
     "step": {
       "user": {
         "data": {
-          "host": "IP address",
-          "password": "Password",
-          "username": "Username"
+          "IP address": "IP address",
+          "Username": "Username",
+          "Password": "Password"
         },
         "description": "Please enter your Control4 account details and the IP address of your local controller."
       },
       "user_reauth": {
         "data": {
-          "host": "IP address",
-          "password": "Password",
-          "username": "Username"
+          "IP address": "IP address",
+          "Username": "Username",
+          "Password": "Password"
         },
         "description": "Please reenter your Control4 account details and the IP address of your local controller."
       }
