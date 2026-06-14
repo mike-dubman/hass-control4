@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Trigger the Release publish GitHub Actions workflow (manual stable release).
-#
-# Usage:
+# See scripts/README.md for full release instructions.
 #   ./scripts/release-publish.sh              # tag manifest version at release branch HEAD
 #   ./scripts/release-publish.sh abc1234      # tag manifest version at a specific commit
 #   RELEASE_WATCH=0 ./scripts/release-publish.sh
