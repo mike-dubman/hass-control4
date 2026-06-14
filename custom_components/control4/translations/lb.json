@@ -1,31 +1,31 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Apparat ass scho konfigur\u00e9iert"
-        },
-        "error": {
-            "cannot_connect": "Feeler beim verbannen",
-            "invalid_auth": "Ong\u00eblteg Authentifikatioun",
-            "unknown": "Onerwaarte Feeler"
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "host": "IP Adress",
-                    "password": "Passwuert",
-                    "username": "Benotzernumm"
-                },
-                "description": "G\u00ebff deng Control4 Kont Informatiounen an d'IP Adress vun dengem lokale Kontroller an."
-            }
-        }
+  "config": {
+    "abort": {
+      "Device is already configured": "Apparat ass scho konfiguréiert"
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "scan_interval": "Sekonnen t\u00ebscht Atkualis\u00e9ierungen"
-                }
-            }
-        }
+    "error": {
+      "Failed to connect": "Feeler beim verbannen",
+      "Invalid authentication": "Ongëlteg Authentifikatioun",
+      "Unknown error": "Onerwaarte Feeler"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "IP address": "IP Adress",
+          "Username": "Benotzernumm",
+          "Password": "Passwuert"
+        },
+        "description": "Gëff deng Control4 Kont Informatiounen an d'IP Adress vun dengem lokale Kontroller an."
+      }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Sekonnen tëscht Atkualiséierungen"
+        }
+      }
+    }
+  }
 }

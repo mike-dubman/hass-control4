@@ -1,31 +1,31 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Apparaat is al geconfigureerd"
-        },
-        "error": {
-            "cannot_connect": "Kan geen verbinding maken",
-            "invalid_auth": "Ongeldige authenticatie",
-            "unknown": "Onverwachte fout"
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "host": "IP-adres",
-                    "password": "Wachtwoord",
-                    "username": "Gebruikersnaam"
-                },
-                "description": "Voer uw Control4-accountgegevens en het IP-adres van uw lokale controller in."
-            }
-        }
+  "config": {
+    "abort": {
+      "Device is already configured": "Apparaat is al geconfigureerd"
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "scan_interval": "Seconden tussen updates"
-                }
-            }
-        }
+    "error": {
+      "Failed to connect": "Kan geen verbinding maken",
+      "Invalid authentication": "Ongeldige authenticatie",
+      "Unknown error": "Onverwachte fout"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "IP address": "IP-adres",
+          "Username": "Gebruikersnaam",
+          "Password": "Wachtwoord"
+        },
+        "description": "Voer uw Control4-accountgegevens en het IP-adres van uw lokale controller in."
+      }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Seconden tussen updates"
+        }
+      }
+    }
+  }
 }

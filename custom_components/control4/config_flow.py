@@ -207,13 +207,53 @@ class Control4ExportView(HomeAssistantView):
             headers={"Content-Disposition": 'attachment; filename="control4_export.json"'},
         )
 
+# Workaround: custom control4 shares domain with core HA integration; bundled
+# frontend translations win for standard keys (host, unknown, …) and show
+# unresolved [%key:...]. Use human-readable keys core does not define.
+# Revert to CONF_HOST / standard error keys when fixed upstream:
+# https://github.com/home-assistant/frontend/issues/52600
+_FORM_LABEL_HOST = "IP address"
+_FORM_LABEL_USERNAME = "Username"
+_FORM_LABEL_PASSWORD = "Password"
+
+# Same issue for config.error / config.abort lookup keys (frontend#52600).
+_ERROR_CANNOT_CONNECT = "Failed to connect"
+_ERROR_INVALID_AUTH = "Invalid authentication"
+_ERROR_UNKNOWN = "Unknown error"
+_ERROR_REAUTH_FAILED = "Reauthentication failed"
+_ABORT_ALREADY_CONFIGURED = "Device is already configured"
+_ABORT_REAUTH_SUCCESSFUL = "Reauthentication was successful"
+
 DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_HOST): str,
-        vol.Required(CONF_USERNAME): str,
-        vol.Required(CONF_PASSWORD): str,
+        vol.Required(_FORM_LABEL_HOST): str,
+        vol.Required(_FORM_LABEL_USERNAME): str,
+        vol.Required(_FORM_LABEL_PASSWORD): selector.TextSelector(
+            selector.TextSelectorConfig(
+                type=selector.TextSelectorType.PASSWORD,
+                autocomplete="current-password",
+            )
+        ),
     }
 )
+
+
+def _credentials_from_form(user_input: dict[str, Any]) -> dict[str, str]:
+    """Map config-flow form labels to config entry credential keys."""
+    return {
+        CONF_HOST: user_input[_FORM_LABEL_HOST],
+        CONF_USERNAME: user_input[_FORM_LABEL_USERNAME],
+        CONF_PASSWORD: user_input[_FORM_LABEL_PASSWORD],
+    }
+
+
+def _suggested_credentials(entry_data: dict[str, Any]) -> dict[str, str]:
+    """Map stored config entry credentials to config-flow form labels."""
+    return {
+        _FORM_LABEL_HOST: entry_data[CONF_HOST],
+        _FORM_LABEL_USERNAME: entry_data[CONF_USERNAME],
+        _FORM_LABEL_PASSWORD: entry_data[CONF_PASSWORD],
+    }
 
 
 class Control4Validator:
@@ -272,12 +312,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def _validate_input(self, user_input):
+    async def _validate_input(self, credentials: dict[str, str]):
         errors = {}
         hub = Control4Validator(
-            user_input[CONF_HOST],
-            user_input[CONF_USERNAME],
-            user_input[CONF_PASSWORD],
+            credentials[CONF_HOST],
+            credentials[CONF_USERNAME],
+            credentials[CONF_PASSWORD],
             self.hass,
         )
         try:
@@ -286,12 +326,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not await hub.connect_to_director():
                 raise CannotConnect
         except InvalidAuth:
-            errors["base"] = "invalid_auth"
+            errors["base"] = _ERROR_INVALID_AUTH
         except CannotConnect:
-            errors["base"] = "cannot_connect"
+            errors["base"] = _ERROR_CANNOT_CONNECT
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception")
-            errors["base"] = "unknown"
+            errors["base"] = _ERROR_UNKNOWN
 
         return errors, hub.controller_unique_id
 
@@ -299,19 +339,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         errors = {}
         if user_input is not None:
-            errors, controller_unique_id = await self._validate_input(user_input)
+            credentials = _credentials_from_form(user_input)
+            errors, controller_unique_id = await self._validate_input(credentials)
             if not errors:
                 assert controller_unique_id is not None
                 mac = (controller_unique_id.split("_", 3))[2]
                 formatted_mac = format_mac(mac)
                 data = {
-                    CONF_HOST: user_input[CONF_HOST],
-                    CONF_USERNAME: user_input[CONF_USERNAME],
-                    CONF_PASSWORD: user_input[CONF_PASSWORD],
+                    **credentials,
                     CONF_CONTROLLER_UNIQUE_ID: controller_unique_id,
                 }
                 await self.async_set_unique_id(formatted_mac)
-                self._abort_if_unique_id_configured()
+                self._abort_if_unique_id_configured(error=_ABORT_ALREADY_CONFIGURED)
                 return self.async_create_entry(
                     title=controller_unique_id,
                     data=data,
@@ -325,28 +364,32 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle a reauthentication request."""
         errors = {}
         if user_input is not None:
-            errors, controller_unique_id = await self._validate_input(user_input)
+            credentials = _credentials_from_form(user_input)
+            errors, controller_unique_id = await self._validate_input(credentials)
             if not errors:
                 assert controller_unique_id is not None
                 mac = (controller_unique_id.split("_", 3))[2]
                 formatted_mac = format_mac(mac)
                 data = {
-                    CONF_HOST: user_input[CONF_HOST],
-                    CONF_USERNAME: user_input[CONF_USERNAME],
-                    CONF_PASSWORD: user_input[CONF_PASSWORD],
+                    **credentials,
                     CONF_CONTROLLER_UNIQUE_ID: controller_unique_id,
                 }
                 _LOGGER.debug("Reauthentication occurring")
                 existing_entry = await self.async_set_unique_id(formatted_mac)
                 if existing_entry is None:
-                    errors["base"] = "reauth_failed"
+                    errors["base"] = _ERROR_REAUTH_FAILED
                 else:
                     self.hass.config_entries.async_update_entry(existing_entry, data=data)
                     await self.hass.config_entries.async_reload(existing_entry.entry_id)
-                    return self.async_abort(reason="reauth_successful")
+                    return self.async_abort(reason=_ABORT_REAUTH_SUCCESSFUL)
 
+        entry = self._get_reauth_entry()
         return self.async_show_form(
-            step_id="user_reauth", data_schema=DATA_SCHEMA, errors=errors
+            step_id="user_reauth",
+            data_schema=self.add_suggested_values_to_schema(
+                DATA_SCHEMA, _suggested_credentials(entry.data)
+            ),
+            errors=errors,
         )
 
     async def async_step_reauth(self, user_input=None):

@@ -1,31 +1,31 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Il dispositivo \u00e8 gi\u00e0 configurato"
-        },
-        "error": {
-            "cannot_connect": "Impossibile connettersi",
-            "invalid_auth": "Autenticazione non valida",
-            "unknown": "Errore imprevisto"
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "host": "Indirizzo IP",
-                    "password": "Password",
-                    "username": "Nome utente"
-                },
-                "description": "Inserisci i dettagli del tuo account Control4 e l'indirizzo IP del controller locale."
-            }
-        }
+  "config": {
+    "abort": {
+      "Device is already configured": "Il dispositivo è già configurato"
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "scan_interval": "Secondi tra gli aggiornamenti"
-                }
-            }
-        }
+    "error": {
+      "Failed to connect": "Impossibile connettersi",
+      "Invalid authentication": "Autenticazione non valida",
+      "Unknown error": "Errore imprevisto"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "IP address": "Indirizzo IP",
+          "Username": "Nome utente",
+          "Password": "Password"
+        },
+        "description": "Inserisci i dettagli del tuo account Control4 e l'indirizzo IP del controller locale."
+      }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Secondi tra gli aggiornamenti"
+        }
+      }
+    }
+  }
 }

@@ -1,31 +1,31 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Urz\u0105dzenie jest ju\u017c skonfigurowane"
-        },
-        "error": {
-            "cannot_connect": "Nie mo\u017cna nawi\u0105za\u0107 po\u0142\u0105czenia",
-            "invalid_auth": "Niepoprawne uwierzytelnienie",
-            "unknown": "Nieoczekiwany b\u0142\u0105d"
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "host": "Adres IP",
-                    "password": "Has\u0142o",
-                    "username": "Nazwa u\u017cytkownika"
-                },
-                "description": "Prosz\u0119 wprowadzi\u0107 dane swojego konta Control4 oraz adres IP lokalnego kontrolera."
-            }
-        }
+  "config": {
+    "abort": {
+      "Device is already configured": "Urządzenie jest już skonfigurowane"
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "scan_interval": "Cz\u0119stotliwo\u015b\u0107 aktualizacji [sekundy]"
-                }
-            }
-        }
+    "error": {
+      "Failed to connect": "Nie można nawiązać połączenia",
+      "Invalid authentication": "Niepoprawne uwierzytelnienie",
+      "Unknown error": "Nieoczekiwany błąd"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "IP address": "Adres IP",
+          "Username": "Nazwa użytkownika",
+          "Password": "Hasło"
+        },
+        "description": "Proszę wprowadzić dane swojego konta Control4 oraz adres IP lokalnego kontrolera."
+      }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Częstotliwość aktualizacji [sekundy]"
+        }
+      }
+    }
+  }
 }
