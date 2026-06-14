@@ -287,6 +287,9 @@ class Control4Validator:
             return True
         except (Unauthorized, NotFound):
             return False
+        except (ClientError, asyncioTimeoutError) as err:
+            _LOGGER.debug("Control4 account API connection failed: %s", err)
+            raise CannotConnect from err
 
     async def connect_to_director(self) -> bool:
         """Test if we can connect to the local Control4 Director."""
