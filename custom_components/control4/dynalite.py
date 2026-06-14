@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import socket
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -188,6 +190,23 @@ async def setup_dynalite_listener(
 DYNALITE_ACK = bytes([0x6C, 0x43, 0x6F, 0x6F, 0x4D, 0x61, 0x73, 0x52])
 FRAME_LEN = 8
 DYNET_CMD = 0x1C
+# Gateway sends periodic ACK heartbeats; treat silence as a dead half-open socket.
+TCP_READ_TIMEOUT = 30.0
+TCP_MAX_IDLE = 90.0
+
+
+def _enable_tcp_keepalive(writer: asyncio.StreamWriter) -> None:
+    """Enable OS TCP keepalive so dead LAN routes are detected faster."""
+    sock = writer.get_extra_info("socket")
+    if sock is None:
+        return
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    if hasattr(socket, "TCP_KEEPIDLE"):
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
+    if hasattr(socket, "TCP_KEEPINTVL"):
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+    if hasattr(socket, "TCP_KEEPCNT"):
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
 
 
 def parse_frame(
@@ -300,15 +319,33 @@ async def _run_tcp_listener(
             continue
         backoff = 1.0
         _LOGGER.info("Dynalite TCP connected to %s:%s", host, port)
+        _enable_tcp_keepalive(writer)
         buf = b""
+        last_rx = time.monotonic()
         try:
             while not shutdown.is_set():
                 try:
-                    data = await asyncio.wait_for(reader.read(4096), timeout=30.0)
+                    data = await asyncio.wait_for(
+                        reader.read(4096), timeout=TCP_READ_TIMEOUT
+                    )
                 except asyncio.TimeoutError:
+                    if time.monotonic() - last_rx >= TCP_MAX_IDLE:
+                        _LOGGER.warning(
+                            "Dynalite TCP idle for %.0fs on %s:%s; reconnecting",
+                            TCP_MAX_IDLE,
+                            host,
+                            port,
+                        )
+                        break
                     continue
                 if not data:
+                    _LOGGER.warning(
+                        "Dynalite TCP connection closed by gateway %s:%s; reconnecting",
+                        host,
+                        port,
+                    )
                     break
+                last_rx = time.monotonic()
                 buf += data
                 _LOGGER.debug("Dynalite TCP received %s bytes, buf len now %s", len(data), len(buf))
                 while len(buf) >= FRAME_LEN:
@@ -324,7 +361,12 @@ async def _run_tcp_listener(
         except asyncio.CancelledError:
             break
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Dynalite TCP read error: %s", err)
+            _LOGGER.warning(
+                "Dynalite TCP read error on %s:%s: %s; reconnecting",
+                host,
+                port,
+                err,
+            )
         finally:
             try:
                 writer.close()
