@@ -1,0 +1,136 @@
+name: Request Copilot review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - release
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  request-copilot-review:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request Copilot code review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const { data } = await github.graphql(
+              `query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    id
+                    reviewRequests(first: 10) {
+                      nodes {
+                        requestedReviewer {
+                          ... on Bot { login }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                number: prNumber,
+              }
+            );
+
+            const pullRequestId = data.repository.pullRequest.id;
+            const alreadyRequested = data.repository.pullRequest.reviewRequests.nodes.some(
+              (node) => node.requestedReviewer?.login === "Copilot"
+            );
+
+            if (!alreadyRequested) {
+              await github.graphql(
+                `mutation($pullRequestId: ID!) {
+                  requestReviews(input: {
+                    pullRequestId: $pullRequestId
+                    botIds: ["BOT_kgDOCnlnWA"]
+                    union: true
+                  }) {
+                    pullRequest { id }
+                  }
+                }`,
+                { pullRequestId }
+              );
+            }
+
+            core.info(`Requested Copilot review for PR #${prNumber}`);
+
+      - name: Verify Copilot review started
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            await new Promise((resolve) => setTimeout(resolve, 15000));
+
+            const { data } = await github.graphql(
+              `query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    reviews(first: 10) {
+                      nodes {
+                        author { login }
+                        state
+                      }
+                    }
+                    reviewRequests(first: 10) {
+                      nodes {
+                        requestedReviewer {
+                          ... on Bot { login }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                number: prNumber,
+              }
+            );
+
+            const pr = data.repository.pullRequest;
+            const copilotReview = pr.reviews.nodes.some(
+              (review) => review.author?.login === "copilot-pull-request-reviewer"
+            );
+            const copilotPending = pr.reviewRequests.nodes.some(
+              (node) =>
+                node.requestedReviewer?.login === "Copilot" ||
+                node.requestedReviewer?.login === "copilot-pull-request-reviewer"
+            );
+
+            if (copilotReview || copilotPending) {
+              core.info("Copilot review is active or pending.");
+              return;
+            }
+
+            const body = [
+              "## Copilot code review did not start",
+              "",
+              "This workflow requested a Copilot review, but none appeared.",
+              "",
+              "**Common fixes:**",
+              "1. Subscribe to [Copilot Pro, Pro+, or Max](https://github.com/settings/copilot) on the PR author account.",
+              "2. In Copilot settings, enable **Automatic Copilot code review** (and optionally **Review new pushes**).",
+              "3. On the PR, manually add **Copilot** under **Reviewers**.",
+              "",
+              "Repo ruleset **code review** already enables automatic Copilot review on push; it still requires an active Copilot plan for the PR author.",
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body,
+            });
+
+            core.warning("Copilot review did not start; posted troubleshooting comment.");
