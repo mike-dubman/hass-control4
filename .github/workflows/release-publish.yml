@@ -1,9 +1,13 @@
 name: Release publish
 
 on:
-  push:
-    branches:
-      - release
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to release (branch, tag, or commit SHA)
+        required: false
+        default: release
+        type: string
 
 permissions:
   contents: write
@@ -13,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Read manifest version
         id: version
@@ -39,5 +45,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ steps.version.outputs.tag }}" \
+            --target "${{ inputs.ref }}" \
             --title "${{ steps.version.outputs.tag }}" \
             --generate-notes
