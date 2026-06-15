@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from pyControl4.blind import C4Blind
+from pyControl4.error_handling import C4Exception
 
 from . import Control4Entity
 from .const import (
@@ -35,12 +36,8 @@ _COVER_PROXY_SUBSTRINGS = (
 	"drap",
 )
 
-# Known manufacturer/model pairs with reliable level reporting (lawtancool #71).
-# dynalite/blind: from farm director export (control4_director_export_01KC9E2KJ8MWKB3ASVQ3A8GY5A.json).
-_POSITION_SUPPORTED_DEVICE_MODELS: dict[str, set[str]] = {
-	"dynalite": {
-		"blind",
-	},
+# Fallback when director item capabilities are missing (lawtancool #71).
+_POSITION_SET_SUPPORTED_DEVICE_MODELS: dict[str, set[str]] = {
 	"qmotion": {
 		"qadvanced roller shade",
 	},
@@ -86,6 +83,21 @@ def _parse_cover_level(value: Any) -> int | None:
 	return None
 
 
+def _parse_service_position(value: Any) -> int | None:
+	"""Parse HA cover.set_cover_position service argument."""
+	if value is None or isinstance(value, bool):
+		return None
+	if isinstance(value, (int, float)):
+		level = int(value)
+	elif isinstance(value, str) and value.strip().isdigit():
+		level = int(value.strip())
+	else:
+		return None
+	if _MIN_COVER_LEVEL <= level <= _MAX_COVER_LEVEL:
+		return level
+	return None
+
+
 def _parse_bool(value: Any) -> bool | None:
 	"""Parse Control4 boolean variables."""
 	if value is None:
@@ -103,14 +115,19 @@ def _parse_bool(value: Any) -> bool | None:
 	return None
 
 
-def _supports_position_allowlist(
+def _item_capabilities(item: dict[str, Any]) -> dict[str, Any]:
+	caps = item.get("capabilities")
+	return caps if isinstance(caps, dict) else {}
+
+
+def _supports_set_position_allowlist(
 	device_manufacturer: str | None, device_model: str | None
 ) -> bool:
 	if not device_manufacturer or not device_model:
 		return False
 	if not isinstance(device_manufacturer, str) or not isinstance(device_model, str):
 		return False
-	return device_model.lower() in _POSITION_SUPPORTED_DEVICE_MODELS.get(
+	return device_model.lower() in _POSITION_SET_SUPPORTED_DEVICE_MODELS.get(
 		device_manufacturer.lower(), set()
 	)
 
@@ -120,15 +137,31 @@ def _has_level_variable(attributes: dict[str, Any]) -> bool:
 	return _attr_value(attributes, _VAR_LEVEL, "level") is not None
 
 
-def _is_positional_cover(
+def _supports_set_position(
+	item: dict[str, Any],
+	device_manufacturer: str | None,
+	device_model: str | None,
+) -> bool:
+	"""True when the driver accepts SET_LEVEL_TARGET (position slider)."""
+	caps = _item_capabilities(item)
+	if caps:
+		return bool(caps.get("has_level")) and bool(caps.get("level_discrete_control"))
+	return _supports_set_position_allowlist(device_manufacturer, device_model)
+
+
+def _has_position_state(
+	item: dict[str, Any],
 	device_manufacturer: str | None,
 	device_model: str | None,
 	attributes: dict[str, Any],
 ) -> bool:
-	"""Positional blinds get state + slider; others stay open/close/stop only."""
-	return _supports_position_allowlist(
-		device_manufacturer, device_model
-	) or _has_level_variable(attributes)
+	"""True when level/open state can be read (polling), with or without a slider."""
+	caps = _item_capabilities(item)
+	if caps.get("has_level"):
+		return True
+	if _has_level_variable(attributes):
+		return True
+	return _supports_set_position_allowlist(device_manufacturer, device_model)
 
 
 async def async_setup_entry(
@@ -182,13 +215,24 @@ async def async_setup_entry(
 			continue
 
 		item_attributes = await director_get_entry_variables(hass, entry, item_id)
-		is_positional = _is_positional_cover(
-			item_manufacturer, item_model, item_attributes
+		has_position_state = _has_position_state(
+			item, item_manufacturer, item_model, item_attributes
 		)
+		supports_set_position = _supports_set_position(
+			item, item_manufacturer, item_model
+		)
+		if has_position_state and not supports_set_position:
+			_LOGGER.debug(
+				"Cover %s (%s) reports level but driver has no discrete level control; "
+				"open/close/stop only",
+				item_name,
+				item_id,
+			)
 
 		entity_list.append(
 			Control4Cover(
-				is_positional,
+				has_position_state,
+				supports_set_position,
 				entry_data,
 				entry,
 				item_name,
@@ -210,7 +254,8 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	def __init__(
 		self,
-		is_positional: bool,
+		has_position_state: bool,
+		supports_set_position: bool,
 		entry_data: dict,
 		entry: ConfigEntry,
 		name: str,
@@ -234,24 +279,22 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 			device_area,
 			device_attributes,
 		)
-		self._is_positional = is_positional
-		if self._is_positional:
+		self._has_position_state = has_position_state
+		self._supports_set_position = supports_set_position
+		features = (
+			CoverEntityFeature.OPEN
+			| CoverEntityFeature.CLOSE
+			| CoverEntityFeature.STOP
+		)
+		if self._supports_set_position:
+			features |= CoverEntityFeature.SET_POSITION
+		self._attr_supported_features = features
+		if self._has_position_state:
 			self._attr_should_poll = True
 			self._attr_assumed_state = False
-			self._attr_supported_features = (
-				CoverEntityFeature.OPEN
-				| CoverEntityFeature.CLOSE
-				| CoverEntityFeature.STOP
-				| CoverEntityFeature.SET_POSITION
-			)
 		else:
 			self._attr_should_poll = False
 			self._attr_assumed_state = True
-			self._attr_supported_features = (
-				CoverEntityFeature.OPEN
-				| CoverEntityFeature.CLOSE
-				| CoverEntityFeature.STOP
-			)
 
 	def create_api_object(self) -> C4Blind:
 		"""Create a pyControl4 device object."""
@@ -262,7 +305,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	@property
 	def current_cover_position(self) -> int | None:  # type: ignore[override]
-		if not self._is_positional:
+		if not self._has_position_state:
 			return None
 		level = _parse_cover_level(
 			_attr_value(self._extra_state_attributes, _VAR_LEVEL, "level")
@@ -277,7 +320,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	@property
 	def is_closed(self) -> bool | None:  # type: ignore[override]
-		if not self._is_positional:
+		if not self._has_position_state:
 			return None
 		fully_closed = _parse_bool(
 			_attr_value(
@@ -293,7 +336,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	@property
 	def is_closing(self) -> bool | None:  # type: ignore[override]
-		if not self._is_positional:
+		if not self._has_position_state:
 			return None
 		return _parse_bool(
 			_attr_value(self._extra_state_attributes, _VAR_CLOSING, "closing")
@@ -301,45 +344,66 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	@property
 	def is_opening(self) -> bool | None:  # type: ignore[override]
-		if not self._is_positional:
+		if not self._has_position_state:
 			return None
 		return _parse_bool(
 			_attr_value(self._extra_state_attributes, _VAR_OPENING, "opening")
 		)
 
+	async def _refresh_position_state(self) -> None:
+		if not self._has_position_state:
+			return
+		await self.async_update()
+		self.async_write_ha_state()
+
 	async def async_open_cover(self, **kwargs: Any) -> None:
 		c4_blind = self.create_api_object()
 		await c4_blind.open()
-		if self._is_positional:
-			await self.async_update()
+		await self._refresh_position_state()
 
 	async def async_close_cover(self, **kwargs: Any) -> None:
 		c4_blind = self.create_api_object()
 		await c4_blind.close()
-		if self._is_positional:
-			await self.async_update()
+		await self._refresh_position_state()
 
 	async def async_set_cover_position(self, **kwargs: Any) -> None:
-		if not self._is_positional:
+		if not self._supports_set_position:
+			_LOGGER.debug(
+				"Ignoring set_cover_position for %s (%s); driver has no level control",
+				self._attr_name,
+				self._idx,
+			)
 			return
-		position = kwargs.get(ATTR_POSITION)
-		if not isinstance(position, (int, float)):
-			_LOGGER.warning("Invalid cover position for %s: %s", self._idx, position)
+		level = _parse_service_position(kwargs.get(ATTR_POSITION))
+		if level is None:
+			_LOGGER.warning(
+				"Invalid cover position for %s (%s): %s",
+				self._attr_name,
+				self._idx,
+				kwargs.get(ATTR_POSITION),
+			)
 			return
-		level = max(_MIN_COVER_LEVEL, min(int(position), _MAX_COVER_LEVEL))
 		c4_blind = self.create_api_object()
-		await c4_blind.set_level_target(level=level)
-		await self.async_update()
+		try:
+			await c4_blind.set_level_target(level=level)
+		except C4Exception as err:
+			_LOGGER.warning(
+				"Control4 set_level_target failed for %s (%s): %s",
+				self._attr_name,
+				self._idx,
+				err,
+			)
+			return
+		await self._refresh_position_state()
 
 	async def async_stop_cover(self, **kwargs: Any) -> None:
 		c4_blind = self.create_api_object()
 		await c4_blind.stop()
-		if self._is_positional:
-			await self.async_update()
+		await self._refresh_position_state()
 
 	async def async_update(self) -> None:
-		"""Poll director variables for positional covers."""
-		if not self._is_positional:
+		"""Poll director variables for covers that report level state."""
+		if not self._has_position_state:
 			return
 		director = self.entry_data[CONF_DIRECTOR]
 		data = await director.get_item_variables(self._idx)
