@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from collections.abc import Callable
+from typing import Any, Literal
 
 from homeassistant.components.cover import (
 	ATTR_POSITION,
@@ -10,7 +11,8 @@ from homeassistant.components.cover import (
 	CoverEntityFeature,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from pyControl4.blind import C4Blind
@@ -282,6 +284,10 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		)
 		self._has_position_state = has_position_state
 		self._supports_set_position = supports_set_position
+		self._pending_movement: Literal["opening", "closing"] | None = None
+		self._movement_start_level: int | None = None
+		self._movement_refresh_unsub: Callable[[], None] | None = None
+		self._movement_timeout_unsub: Callable[[], None] | None = None
 		features = (
 			CoverEntityFeature.OPEN
 			| CoverEntityFeature.CLOSE
@@ -305,6 +311,117 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 	def _report_position_state(self) -> bool:
 		"""True when Level (and related vars) should map to HA cover state."""
 		return self._has_position_state
+
+	def _read_level(self) -> int | None:
+		return _parse_cover_level(
+			_attr_value(self._extra_state_attributes, _VAR_LEVEL, "level")
+		)
+
+	def _driver_opening(self) -> bool:
+		return bool(
+			_parse_bool(
+				_attr_value(self._extra_state_attributes, _VAR_OPENING, "opening")
+			)
+		)
+
+	def _driver_closing(self) -> bool:
+		return bool(
+			_parse_bool(
+				_attr_value(self._extra_state_attributes, _VAR_CLOSING, "closing")
+			)
+		)
+
+	def _cancel_movement_refresh(self) -> None:
+		for unsub in (self._movement_refresh_unsub, self._movement_timeout_unsub):
+			if unsub is not None:
+				unsub()
+		self._movement_refresh_unsub = None
+		self._movement_timeout_unsub = None
+
+	def _sync_pending_movement(self) -> None:
+		"""Clear optimistic movement once the driver reports a settled level."""
+		if self._pending_movement is None:
+			return
+		level = self._read_level()
+		if self._pending_movement == "opening":
+			if _parse_bool(
+				_attr_value(
+					self._extra_state_attributes, _VAR_FULLY_OPEN, "fully open"
+				)
+			):
+				self._clear_movement()
+			elif level == _MAX_COVER_LEVEL:
+				self._clear_movement()
+			elif (
+				level is not None
+				and self._movement_start_level is not None
+				and level > self._movement_start_level
+				and not self._driver_opening()
+				and not self._driver_closing()
+			):
+				# Level moved but driver did not set Opening; keep pending until settled.
+				pass
+		elif self._pending_movement == "closing":
+			if _parse_bool(
+				_attr_value(
+					self._extra_state_attributes, _VAR_FULLY_CLOSED, "fully closed"
+				)
+			):
+				self._clear_movement()
+			elif level == _MIN_COVER_LEVEL and not self._driver_closing():
+				self._clear_movement()
+
+	def _clear_movement(self) -> None:
+		self._pending_movement = None
+		self._movement_start_level = None
+		self._cancel_movement_refresh()
+
+	def _begin_movement(self, direction: Literal["opening", "closing"]) -> None:
+		self._cancel_movement_refresh()
+		self._pending_movement = direction
+		self._movement_start_level = self._read_level()
+		self.async_write_ha_state()
+
+	@callback
+	def _async_movement_refresh(self, _now) -> None:
+		"""Poll level while movement is in progress (Dynalite updates lag)."""
+		self._movement_refresh_unsub = None
+		if self._pending_movement is None:
+			return
+		self.hass.async_create_task(self._refresh_position_state())
+		self._movement_refresh_unsub = async_call_later(
+			self.hass, 3.0, self._async_movement_refresh
+		)
+
+	def _schedule_movement_refresh(self) -> None:
+		self._cancel_movement_refresh()
+
+		@callback
+		def _async_movement_timeout(_now) -> None:
+			self._movement_timeout_unsub = None
+			if self._pending_movement is None:
+				return
+			self._clear_movement()
+			self.hass.async_create_task(self._refresh_position_state())
+
+		self._movement_refresh_unsub = async_call_later(
+			self.hass, 2.0, self._async_movement_refresh
+		)
+		self._movement_timeout_unsub = async_call_later(
+			self.hass, 12.0, _async_movement_timeout
+		)
+
+	async def async_will_remove_from_hass(self) -> None:
+		self._cancel_movement_refresh()
+		await super().async_will_remove_from_hass()
+
+	async def _update_callback(self, device, message) -> None:
+		await super()._update_callback(device, message)
+		if message is not False and message.get("evtName") == "OnDataToUI":
+			self._sync_pending_movement()
+			if self._pending_movement is None:
+				self._cancel_movement_refresh()
+			self.async_write_ha_state()
 
 	def create_api_object(self) -> C4Blind:
 		"""Create a pyControl4 device object."""
@@ -332,6 +449,8 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 	def is_closed(self) -> bool | None:  # type: ignore[override]
 		if not self._report_position_state():
 			return None
+		if self.is_opening or self.is_closing:
+			return False
 		# Dynalite and similar drivers often leave flags at 0; only trust positive set.
 		if _parse_bool(
 			_attr_value(
@@ -354,6 +473,8 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 	def is_closing(self) -> bool | None:  # type: ignore[override]
 		if not self._report_position_state():
 			return None
+		if self._pending_movement == "closing":
+			return True
 		return _parse_bool(
 			_attr_value(self._extra_state_attributes, _VAR_CLOSING, "closing")
 		)
@@ -362,6 +483,8 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 	def is_opening(self) -> bool | None:  # type: ignore[override]
 		if not self._report_position_state():
 			return None
+		if self._pending_movement == "opening":
+			return True
 		return _parse_bool(
 			_attr_value(self._extra_state_attributes, _VAR_OPENING, "opening")
 		)
@@ -370,16 +493,21 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		if not self._has_position_state:
 			return
 		await self.async_update()
+		self._sync_pending_movement()
 		self.async_write_ha_state()
 
 	async def async_open_cover(self, **kwargs: Any) -> None:
+		self._begin_movement("opening")
 		c4_blind = self.create_api_object()
 		await c4_blind.open()
+		self._schedule_movement_refresh()
 		await self._refresh_position_state()
 
 	async def async_close_cover(self, **kwargs: Any) -> None:
+		self._begin_movement("closing")
 		c4_blind = self.create_api_object()
 		await c4_blind.close()
+		self._schedule_movement_refresh()
 		await self._refresh_position_state()
 
 	async def async_set_cover_position(self, **kwargs: Any) -> None:
@@ -415,6 +543,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 	async def async_stop_cover(self, **kwargs: Any) -> None:
 		c4_blind = self.create_api_object()
 		await c4_blind.stop()
+		self._clear_movement()
 		await self._refresh_position_state()
 
 	async def async_update(self) -> None:
