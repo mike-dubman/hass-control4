@@ -36,7 +36,11 @@ _COVER_PROXY_SUBSTRINGS = (
 )
 
 # Known manufacturer/model pairs with reliable level reporting (lawtancool #71).
+# dynalite/blind: from farm director export (control4_director_export_01KC9E2KJ8MWKB3ASVQ3A8GY5A.json).
 _POSITION_SUPPORTED_DEVICE_MODELS: dict[str, set[str]] = {
+	"dynalite": {
+		"blind",
+	},
 	"qmotion": {
 		"qadvanced roller shade",
 	},
