@@ -48,6 +48,7 @@ _MAX_COVER_LEVEL = 100
 
 _VAR_LEVEL = "Level"
 _VAR_FULLY_CLOSED = "Fully Closed"
+_VAR_FULLY_OPEN = "Fully Open"
 _VAR_OPENING = "Opening"
 _VAR_CLOSING = "Closing"
 
@@ -331,13 +332,19 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 	def is_closed(self) -> bool | None:  # type: ignore[override]
 		if not self._report_position_state():
 			return None
-		fully_closed = _parse_bool(
+		# Dynalite and similar drivers often leave flags at 0; only trust positive set.
+		if _parse_bool(
 			_attr_value(
 				self._extra_state_attributes, _VAR_FULLY_CLOSED, "fully closed"
 			)
-		)
-		if fully_closed is not None:
-			return fully_closed
+		):
+			return True
+		if _parse_bool(
+			_attr_value(
+				self._extra_state_attributes, _VAR_FULLY_OPEN, "fully open"
+			)
+		):
+			return False
 		position = self.current_cover_position
 		if position is None:
 			return None
