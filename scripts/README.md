@@ -4,6 +4,8 @@ Stable GitHub releases for this fork are **manual**. Merging PRs to `release` do
 
 PRs to `release` still get automatic **pre-release debug drops** (`v{version}-pr{number}.{sha}`) for HACS beta testing.
 
+**Manifest during a PR:** bump `version` **once** when the PR is ready to merge (or at open if you need a distinct debug-drop CalVer). Do not increment the patch on every fix commit in the same PR.
+
 ## Before you release
 
 1. Merge the PRs you want into `release`.
