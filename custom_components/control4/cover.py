@@ -289,12 +289,21 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		if self._supports_set_position:
 			features |= CoverEntityFeature.SET_POSITION
 		self._attr_supported_features = features
-		if self._has_position_state:
+		# Open/close-only drivers (e.g. Dynalite) can stop mid-travel; reporting a
+		# partial Level makes HA think the cover is fully open and greys out Open.
+		if self._supports_set_position and self._has_position_state:
 			self._attr_should_poll = True
 			self._attr_assumed_state = False
+		elif self._has_position_state:
+			self._attr_should_poll = True
+			self._attr_assumed_state = True
 		else:
 			self._attr_should_poll = False
 			self._attr_assumed_state = True
+
+	def _expose_position_to_ha(self) -> bool:
+		"""Only positional drivers use Level for HA open/closed UI logic."""
+		return self._supports_set_position and self._has_position_state
 
 	def create_api_object(self) -> C4Blind:
 		"""Create a pyControl4 device object."""
@@ -305,7 +314,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	@property
 	def current_cover_position(self) -> int | None:  # type: ignore[override]
-		if not self._has_position_state:
+		if not self._expose_position_to_ha():
 			return None
 		level = _parse_cover_level(
 			_attr_value(self._extra_state_attributes, _VAR_LEVEL, "level")
@@ -320,7 +329,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	@property
 	def is_closed(self) -> bool | None:  # type: ignore[override]
-		if not self._has_position_state:
+		if not self._expose_position_to_ha():
 			return None
 		fully_closed = _parse_bool(
 			_attr_value(
@@ -336,7 +345,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	@property
 	def is_closing(self) -> bool | None:  # type: ignore[override]
-		if not self._has_position_state:
+		if not self._expose_position_to_ha():
 			return None
 		return _parse_bool(
 			_attr_value(self._extra_state_attributes, _VAR_CLOSING, "closing")
@@ -344,7 +353,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	@property
 	def is_opening(self) -> bool | None:  # type: ignore[override]
-		if not self._has_position_state:
+		if not self._expose_position_to_ha():
 			return None
 		return _parse_bool(
 			_attr_value(self._extra_state_attributes, _VAR_OPENING, "opening")
