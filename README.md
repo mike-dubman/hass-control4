@@ -4,7 +4,7 @@ Vendor fork of [lawtancool/hass-control4](https://github.com/lawtancool/hass-con
 
 **Versioning:** This fork uses **CalVer** (`YYYY.MM.DD.N`), not upstream semver. Example: `2026.06.13.1` = first build on 2026-06-13. See [Releases](https://github.com/mike-dubman/hass-control4/releases) for changelogs (including which upstream commit each build is based on).
 
-This custom integration for Home Assistant allows control of Control4 lights, locks (only locks that are relay-based in Control4), alarm control panels, door/window/motion sensors (as binary sensors), thermostats, fans, relay devices (as switches), and blinds/shades (as covers, stateless open/close/stop).
+This custom integration for Home Assistant allows control of Control4 lights, locks (only locks that are relay-based in Control4), alarm control panels, door/window/motion sensors (as binary sensors), thermostats, fans, relay devices (as switches), and blinds/shades (as covers — open/close/stop by default; position control when the driver reports level state).
 
 ## Installation
 

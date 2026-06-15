@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 from homeassistant.components.cover import (
+	ATTR_POSITION,
 	CoverEntity,
 	CoverEntityFeature,
 )
@@ -34,6 +35,97 @@ _COVER_PROXY_SUBSTRINGS = (
 	"drap",
 )
 
+# Known manufacturer/model pairs with reliable level reporting (lawtancool #71).
+_POSITION_SUPPORTED_DEVICE_MODELS: dict[str, set[str]] = {
+	"qmotion": {
+		"qadvanced roller shade",
+	},
+}
+
+_MIN_COVER_LEVEL = 0
+_MAX_COVER_LEVEL = 100
+
+_VAR_LEVEL = "Level"
+_VAR_FULLY_CLOSED = "Fully Closed"
+_VAR_OPENING = "Opening"
+_VAR_CLOSING = "Closing"
+
+
+def _attr_value(attributes: dict[str, Any], *keys: str) -> Any:
+	"""Return the first matching attribute (exact or case-insensitive key)."""
+	for key in keys:
+		if key in attributes:
+			return attributes[key]
+	lower_map = {str(k).lower(): v for k, v in attributes.items()}
+	for key in keys:
+		if key.lower() in lower_map:
+			return lower_map[key.lower()]
+	return None
+
+
+def _parse_cover_level(value: Any) -> int | None:
+	"""Parse Control4 level (0-100) from director or websocket values."""
+	if value is None:
+		return None
+	if isinstance(value, bool):
+		return None
+	if isinstance(value, int):
+		level = value
+	elif isinstance(value, float):
+		level = int(value)
+	elif isinstance(value, str) and value.strip().isdigit():
+		level = int(value.strip())
+	else:
+		return None
+	if _MIN_COVER_LEVEL <= level <= _MAX_COVER_LEVEL:
+		return level
+	return None
+
+
+def _parse_bool(value: Any) -> bool | None:
+	"""Parse Control4 boolean variables."""
+	if value is None:
+		return None
+	if isinstance(value, bool):
+		return value
+	if isinstance(value, (int, float)):
+		return bool(value)
+	if isinstance(value, str):
+		normalized = value.strip().lower()
+		if normalized in ("true", "1", "yes"):
+			return True
+		if normalized in ("false", "0", "no"):
+			return False
+	return None
+
+
+def _supports_position_allowlist(
+	device_manufacturer: str | None, device_model: str | None
+) -> bool:
+	if not device_manufacturer or not device_model:
+		return False
+	if not isinstance(device_manufacturer, str) or not isinstance(device_model, str):
+		return False
+	return device_model.lower() in _POSITION_SUPPORTED_DEVICE_MODELS.get(
+		device_manufacturer.lower(), set()
+	)
+
+
+def _has_level_variable(attributes: dict[str, Any]) -> bool:
+	"""True when the director exposes a Level variable for this blind."""
+	return _attr_value(attributes, _VAR_LEVEL, "level") is not None
+
+
+def _is_positional_cover(
+	device_manufacturer: str | None,
+	device_model: str | None,
+	attributes: dict[str, Any],
+) -> bool:
+	"""Positional blinds get state + slider; others stay open/close/stop only."""
+	return _supports_position_allowlist(
+		device_manufacturer, device_model
+	) or _has_level_variable(attributes)
+
 
 async def async_setup_entry(
 	hass: HomeAssistant,
@@ -44,7 +136,6 @@ async def async_setup_entry(
 	entry_data = hass.data[DOMAIN][entry.entry_id]
 	all_items: list[dict[str, Any]] = entry_data[CONF_DIRECTOR_ALL_ITEMS]
 
-	# Build quick lookup by id for parent data
 	items_by_id = {item.get("id"): item for item in all_items if "id" in item}
 
 	def _is_cover_proxy(proxy_value: str | None) -> bool:
@@ -53,7 +144,6 @@ async def async_setup_entry(
 		p = proxy_value.lower()
 		return any(s in p for s in _COVER_PROXY_SUBSTRINGS)
 
-	# Identify cover entities via proxy type heuristics
 	cover_items: list[dict[str, Any]] = [
 		item
 		for item in all_items
@@ -88,9 +178,13 @@ async def async_setup_entry(
 			continue
 
 		item_attributes = await director_get_entry_variables(hass, entry, item_id)
+		is_positional = _is_positional_cover(
+			item_manufacturer, item_model, item_attributes
+		)
 
 		entity_list.append(
 			Control4Cover(
+				is_positional,
 				entry_data,
 				entry,
 				item_name,
@@ -109,18 +203,54 @@ async def async_setup_entry(
 
 class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 	"""Control4 cover (blinds/shades) entity."""
-	_attr_assumed_state = True
-	_attr_supported_features = (
-		CoverEntityFeature.OPEN
-		| CoverEntityFeature.CLOSE
-		| CoverEntityFeature.STOP
-	)
+
+	def __init__(
+		self,
+		is_positional: bool,
+		entry_data: dict,
+		entry: ConfigEntry,
+		name: str,
+		idx: int,
+		device_name: str | None,
+		device_manufacturer: str | None,
+		device_model: str | None,
+		device_id: int,
+		device_area: str | None,
+		device_attributes: dict,
+	) -> None:
+		super().__init__(
+			entry_data,
+			entry,
+			name,
+			idx,
+			device_name,
+			device_manufacturer,
+			device_model,
+			device_id,
+			device_area,
+			device_attributes,
+		)
+		self._is_positional = is_positional
+		if self._is_positional:
+			self._attr_should_poll = True
+			self._attr_assumed_state = False
+			self._attr_supported_features = (
+				CoverEntityFeature.OPEN
+				| CoverEntityFeature.CLOSE
+				| CoverEntityFeature.STOP
+				| CoverEntityFeature.SET_POSITION
+			)
+		else:
+			self._attr_should_poll = False
+			self._attr_assumed_state = True
+			self._attr_supported_features = (
+				CoverEntityFeature.OPEN
+				| CoverEntityFeature.CLOSE
+				| CoverEntityFeature.STOP
+			)
 
 	def create_api_object(self) -> C4Blind:
-		"""Create a pyControl4 device object.
-		This exists so the director token used is always the latest one,
-		without needing to re-init the entire entity.
-		"""
+		"""Create a pyControl4 device object."""
 		return C4Blind(self.entry_data[CONF_DIRECTOR], self._idx)
 
 	async def async_added_to_hass(self):
@@ -128,30 +258,86 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	@property
 	def current_cover_position(self) -> int | None:  # type: ignore[override]
-		"""Unknown in stateless mode to keep both buttons enabled."""
-		return None
+		if not self._is_positional:
+			return None
+		level = _parse_cover_level(
+			_attr_value(self._extra_state_attributes, _VAR_LEVEL, "level")
+		)
+		if level is None:
+			_LOGGER.debug(
+				"Invalid or missing Level for cover %s (%s)",
+				self._attr_name,
+				self._idx,
+			)
+		return level
 
 	@property
 	def is_closed(self) -> bool | None:  # type: ignore[override]
-		"""Unknown in stateless mode to keep both buttons enabled."""
-		return None
+		if not self._is_positional:
+			return None
+		fully_closed = _parse_bool(
+			_attr_value(
+				self._extra_state_attributes, _VAR_FULLY_CLOSED, "fully closed"
+			)
+		)
+		if fully_closed is not None:
+			return fully_closed
+		position = self.current_cover_position
+		if position is None:
+			return None
+		return position == _MIN_COVER_LEVEL
+
+	@property
+	def is_closing(self) -> bool | None:  # type: ignore[override]
+		if not self._is_positional:
+			return None
+		return _parse_bool(
+			_attr_value(self._extra_state_attributes, _VAR_CLOSING, "closing")
+		)
+
+	@property
+	def is_opening(self) -> bool | None:  # type: ignore[override]
+		if not self._is_positional:
+			return None
+		return _parse_bool(
+			_attr_value(self._extra_state_attributes, _VAR_OPENING, "opening")
+		)
 
 	async def async_open_cover(self, **kwargs: Any) -> None:
-		"""Open the cover."""
 		c4_blind = self.create_api_object()
 		await c4_blind.open()
+		if self._is_positional:
+			await self.async_update()
 
 	async def async_close_cover(self, **kwargs: Any) -> None:
-		"""Close the cover."""
 		c4_blind = self.create_api_object()
 		await c4_blind.close()
+		if self._is_positional:
+			await self.async_update()
 
 	async def async_set_cover_position(self, **kwargs: Any) -> None:
-		"""No-op in stateless mode (no position slider)."""
-		return
+		if not self._is_positional:
+			return
+		position = kwargs.get(ATTR_POSITION)
+		if not isinstance(position, (int, float)):
+			_LOGGER.warning("Invalid cover position for %s: %s", self._idx, position)
+			return
+		level = max(_MIN_COVER_LEVEL, min(int(position), _MAX_COVER_LEVEL))
+		c4_blind = self.create_api_object()
+		await c4_blind.set_level_target(level=level)
+		await self.async_update()
 
 	async def async_stop_cover(self, **kwargs: Any) -> None:
-		"""Stop the cover."""
 		c4_blind = self.create_api_object()
 		await c4_blind.stop()
+		if self._is_positional:
+			await self.async_update()
 
+	async def async_update(self) -> None:
+		"""Poll director variables for positional covers."""
+		if not self._is_positional:
+			return
+		director = self.entry_data[CONF_DIRECTOR]
+		data = await director.get_item_variables(self._idx)
+		for item in data:
+			self._extra_state_attributes[item["varName"]] = item["value"]
