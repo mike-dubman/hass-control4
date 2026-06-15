@@ -286,6 +286,9 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		self._supports_set_position = supports_set_position
 		self._pending_movement: Literal["opening", "closing"] | None = None
 		self._movement_start_level: int | None = None
+		self._trusted_level: int | None = _parse_cover_level(
+			_attr_value(device_attributes, _VAR_LEVEL, "level")
+		)
 		self._movement_refresh_unsub: Callable[[], None] | None = None
 		self._movement_timeout_unsub: Callable[[], None] | None = None
 		features = (
@@ -316,6 +319,42 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		return _parse_cover_level(
 			_attr_value(self._extra_state_attributes, _VAR_LEVEL, "level")
 		)
+
+	def _level_spiked_open(self, raw: int, reference: int | None) -> bool:
+		"""True when Level jumped toward fully open without a believable move."""
+		if reference is None:
+			return False
+		return raw >= 90 and raw > reference + 20
+
+	def _level_spiked_closed(self, raw: int, reference: int | None) -> bool:
+		if reference is None:
+			return False
+		return raw <= 10 and raw < reference - 20
+
+	def _update_trusted_level(self, raw: int | None) -> None:
+		"""Remember the last believable level between commands."""
+		if raw is None or self._pending_movement is not None:
+			return
+		if self._trusted_level is None:
+			self._trusted_level = raw
+			return
+		if self._level_spiked_open(raw, self._trusted_level):
+			return
+		if self._level_spiked_closed(raw, self._trusted_level):
+			return
+		self._trusted_level = raw
+
+	def _display_level(self) -> int | None:
+		"""Level for HA UI, ignoring driver spikes during movement."""
+		raw = self._read_level()
+		start = self._movement_start_level
+		if self._pending_movement == "closing" and start is not None and raw is not None:
+			if raw > start or self._level_spiked_open(raw, start):
+				return start
+		if self._pending_movement == "opening" and start is not None and raw is not None:
+			if raw < start or self._level_spiked_closed(raw, start):
+				return start
+		return raw
 
 	def _driver_opening(self) -> bool:
 		return bool(
@@ -356,11 +395,8 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 				level is not None
 				and self._movement_start_level is not None
 				and level > self._movement_start_level
-				and not self._driver_opening()
-				and not self._driver_closing()
 			):
-				# Level moved but driver did not set Opening; keep pending until settled.
-				pass
+				self._trusted_level = level
 		elif self._pending_movement == "closing":
 			if _parse_bool(
 				_attr_value(
@@ -368,8 +404,18 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 				)
 			):
 				self._clear_movement()
-			elif level == _MIN_COVER_LEVEL and not self._driver_closing():
+			elif (
+				level == _MIN_COVER_LEVEL
+				and not self._driver_closing()
+				and not self._level_spiked_open(level, self._movement_start_level)
+			):
 				self._clear_movement()
+			elif (
+				level is not None
+				and self._movement_start_level is not None
+				and level < self._movement_start_level
+			):
+				self._trusted_level = level
 
 	def _clear_movement(self) -> None:
 		self._pending_movement = None
@@ -379,7 +425,25 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 	def _begin_movement(self, direction: Literal["opening", "closing"]) -> None:
 		self._cancel_movement_refresh()
 		self._pending_movement = direction
-		self._movement_start_level = self._read_level()
+		raw = self._read_level()
+		start = raw
+		if (
+			direction == "closing"
+			and raw is not None
+			and self._trusted_level is not None
+			and self._level_spiked_open(raw, self._trusted_level)
+		):
+			start = self._trusted_level
+		elif (
+			direction == "opening"
+			and raw is not None
+			and self._trusted_level is not None
+			and self._level_spiked_closed(raw, self._trusted_level)
+		):
+			start = self._trusted_level
+		elif raw is None and self._trusted_level is not None:
+			start = self._trusted_level
+		self._movement_start_level = start
 		self.async_write_ha_state()
 
 	@callback
@@ -420,6 +484,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		if message is not False and message.get("evtName") == "OnDataToUI":
 			self._sync_pending_movement()
 			if self._pending_movement is None:
+				self._update_trusted_level(self._read_level())
 				self._cancel_movement_refresh()
 			self.async_write_ha_state()
 
@@ -434,9 +499,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 	def current_cover_position(self) -> int | None:  # type: ignore[override]
 		if not self._report_position_state():
 			return None
-		level = _parse_cover_level(
-			_attr_value(self._extra_state_attributes, _VAR_LEVEL, "level")
-		)
+		level = self._display_level()
 		if level is None:
 			_LOGGER.debug(
 				"Invalid or missing Level for cover %s (%s)",
@@ -493,7 +556,11 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		if not self._has_position_state:
 			return
 		await self.async_update()
+		if self._pending_movement is None:
+			self._update_trusted_level(self._read_level())
 		self._sync_pending_movement()
+		if self._pending_movement is None:
+			self._update_trusted_level(self._read_level())
 		self.async_write_ha_state()
 
 	async def async_open_cover(self, **kwargs: Any) -> None:
@@ -545,6 +612,16 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		await c4_blind.stop()
 		self._clear_movement()
 		await self._refresh_position_state()
+		# Dynalite often reports Level=100 after stop; keep last believable level.
+		raw = self._read_level()
+		if raw is not None and self._trusted_level is not None:
+			if self._level_spiked_open(raw, self._trusted_level):
+				pass
+			else:
+				self._trusted_level = raw
+		elif raw is not None:
+			self._trusted_level = raw
+		self.async_write_ha_state()
 
 	async def async_update(self) -> None:
 		"""Poll director variables for covers that report level state."""
