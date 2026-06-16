@@ -355,7 +355,9 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 			"display_level": self._display_level(),
 		}
 
-	def _log_cover(self, event: str, level: int = logging.DEBUG, **extra: Any) -> None:
+	def _log_cover(
+		self, event: str, log_level: int = logging.DEBUG, **extra: Any
+	) -> None:
 		"""Log driver vars + computed HA state (enable DEBUG on this module)."""
 		payload = {
 			"event": event,
@@ -366,7 +368,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		}
 		if extra:
 			payload["extra"] = extra
-		_LOGGER.log(level, "Cover %s (%s): %s", self._attr_name, self._idx, payload)
+		_LOGGER.log(log_level, "Cover %s (%s): %s", self._attr_name, self._idx, payload)
 
 	def _read_level(self) -> int | None:
 		return _parse_cover_level(
@@ -491,10 +493,10 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 				f"movement_cleared:{before}",
 				logging.INFO,
 				was=before,
-				level=level,
+				cover_level=level,
 			)
 		elif before is not None:
-			self._log_cover(f"movement_sync:{before}", level=level)
+			self._log_cover(f"movement_sync:{before}", cover_level=level)
 
 	def _clear_movement(self) -> None:
 		if self._pending_movement is not None:
