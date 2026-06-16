@@ -351,10 +351,22 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		if self._pending_movement == "closing" and start is not None and raw is not None:
 			if raw > start or self._level_spiked_open(raw, start):
 				return start
-		if self._pending_movement == "opening" and start is not None and raw is not None:
-			if raw < start or self._level_spiked_closed(raw, start):
+		if self._pending_movement == "opening" and start is not None:
+			# Level often stays at 0 until travel starts; avoid showing "closed".
+			if raw is None or raw <= start:
+				return None
+			if self._level_spiked_closed(raw, start):
 				return start
 		return raw
+
+	def _opening_settled(self, level: int | None) -> bool:
+		"""True when an open command has believably finished."""
+		if level != _MAX_COVER_LEVEL:
+			return False
+		start = self._movement_start_level
+		if start is not None and self._level_spiked_open(level, start):
+			return False
+		return True
 
 	def _driver_opening(self) -> bool:
 		return bool(
@@ -383,18 +395,22 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 			return
 		level = self._read_level()
 		if self._pending_movement == "opening":
-			if _parse_bool(
-				_attr_value(
-					self._extra_state_attributes, _VAR_FULLY_OPEN, "fully open"
+			if (
+				_parse_bool(
+					_attr_value(
+						self._extra_state_attributes, _VAR_FULLY_OPEN, "fully open"
+					)
 				)
+				and self._opening_settled(level)
 			):
 				self._clear_movement()
-			elif level == _MAX_COVER_LEVEL:
+			elif self._opening_settled(level):
 				self._clear_movement()
 			elif (
 				level is not None
 				and self._movement_start_level is not None
 				and level > self._movement_start_level
+				and not self._level_spiked_open(level, self._movement_start_level)
 			):
 				self._trusted_level = level
 		elif self._pending_movement == "closing":
@@ -533,24 +549,40 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		return position == _MIN_COVER_LEVEL
 
 	@property
-	def is_closing(self) -> bool | None:  # type: ignore[override]
-		if not self._report_position_state():
-			return None
-		if self._pending_movement == "closing":
-			return True
-		return _parse_bool(
-			_attr_value(self._extra_state_attributes, _VAR_CLOSING, "closing")
-		)
-
-	@property
 	def is_opening(self) -> bool | None:  # type: ignore[override]
 		if not self._report_position_state():
 			return None
 		if self._pending_movement == "opening":
 			return True
-		return _parse_bool(
-			_attr_value(self._extra_state_attributes, _VAR_OPENING, "opening")
-		)
+		if self._driver_opening():
+			return True
+		return False
+
+	@property
+	def state(self) -> str | None:  # type: ignore[override]
+		"""Keep opening/closing visible when Level lags or spikes (Dynalite)."""
+		if self._pending_movement == "opening":
+			return "opening"
+		if self._pending_movement == "closing":
+			return "closing"
+		if self.is_opening:
+			return "opening"
+		if self.is_closing:
+			return "closing"
+		closed = self.is_closed
+		if closed is None:
+			return None
+		return "closed" if closed else "open"
+
+	@property
+	def is_closing(self) -> bool | None:  # type: ignore[override]
+		if not self._report_position_state():
+			return None
+		if self._pending_movement == "closing":
+			return True
+		if self._driver_closing():
+			return True
+		return False
 
 	async def _refresh_position_state(self) -> None:
 		if not self._has_position_state:
