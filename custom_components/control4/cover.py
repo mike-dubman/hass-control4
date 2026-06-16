@@ -54,6 +54,21 @@ _VAR_FULLY_OPEN = "Fully Open"
 _VAR_OPENING = "Opening"
 _VAR_CLOSING = "Closing"
 
+# Director variables logged for Dynalite / cover state debugging.
+_LOG_COVER_VARS = (
+	_VAR_LEVEL,
+	"level",
+	"Target Level",
+	"level_target",
+	_VAR_FULLY_CLOSED,
+	_VAR_FULLY_OPEN,
+	_VAR_OPENING,
+	_VAR_CLOSING,
+	"Open",
+	"Stopped",
+	"Movement",
+)
+
 
 def _attr_value(attributes: dict[str, Any], *keys: str) -> Any:
 	"""Return the first matching attribute (exact or case-insensitive key)."""
@@ -315,6 +330,44 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		"""True when Level (and related vars) should map to HA cover state."""
 		return self._has_position_state
 
+	def _driver_vars_snapshot(self) -> dict[str, Any]:
+		"""Relevant Control4 variables for logging."""
+		out: dict[str, Any] = {}
+		for key in _LOG_COVER_VARS:
+			val = _attr_value(self._extra_state_attributes, key)
+			if val is not None:
+				out[key] = val
+		return out
+
+	def _ha_state_snapshot(self) -> dict[str, Any]:
+		"""Computed HA cover properties for logging."""
+		return {
+			"state": self.state,
+			"position": self.current_cover_position,
+			"is_closed": self.is_closed,
+			"is_opening": self.is_opening,
+			"is_closing": self.is_closing,
+			"assumed_state": self._attr_assumed_state,
+			"pending": self._pending_movement,
+			"start_level": self._movement_start_level,
+			"trusted_level": self._trusted_level,
+			"raw_level": self._read_level(),
+			"display_level": self._display_level(),
+		}
+
+	def _log_cover(self, event: str, level: int = logging.DEBUG, **extra: Any) -> None:
+		"""Log driver vars + computed HA state (enable DEBUG on this module)."""
+		payload = {
+			"event": event,
+			"item_id": self._idx,
+			"name": self._attr_name,
+			"driver": self._driver_vars_snapshot(),
+			"ha": self._ha_state_snapshot(),
+		}
+		if extra:
+			payload["extra"] = extra
+		_LOGGER.log(level, "Cover %s (%s): %s", self._attr_name, self._idx, payload)
+
 	def _read_level(self) -> int | None:
 		return _parse_cover_level(
 			_attr_value(self._extra_state_attributes, _VAR_LEVEL, "level")
@@ -393,6 +446,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		"""Clear optimistic movement once the driver reports a settled level."""
 		if self._pending_movement is None:
 			return
+		before = self._pending_movement
 		level = self._read_level()
 		if self._pending_movement == "opening":
 			if (
@@ -432,8 +486,22 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 				and level < self._movement_start_level
 			):
 				self._trusted_level = level
+		if self._pending_movement is None and before is not None:
+			self._log_cover(
+				f"movement_cleared:{before}",
+				logging.INFO,
+				was=before,
+				level=level,
+			)
+		elif before is not None:
+			self._log_cover(f"movement_sync:{before}", level=level)
 
 	def _clear_movement(self) -> None:
+		if self._pending_movement is not None:
+			self._log_cover(
+				f"movement_clear:{self._pending_movement}",
+				logging.INFO,
+			)
 		self._pending_movement = None
 		self._movement_start_level = None
 		self._cancel_movement_refresh()
@@ -460,6 +528,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		elif raw is None and self._trusted_level is not None:
 			start = self._trusted_level
 		self._movement_start_level = start
+		self._log_cover(f"movement_begin:{direction}", logging.INFO, raw_level=raw, start_level=start)
 		self.async_write_ha_state()
 
 	@callback
@@ -497,7 +566,10 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 
 	async def _update_callback(self, device, message) -> None:
 		await super()._update_callback(device, message)
-		if message is not False and message.get("evtName") == "OnDataToUI":
+		if message is False:
+			self._log_cover("websocket_disconnect", logging.WARNING)
+		elif message.get("evtName") == "OnDataToUI":
+			self._log_cover("websocket_update", data=message.get("data"))
 			self._sync_pending_movement()
 			if self._pending_movement is None:
 				self._update_trusted_level(self._read_level())
@@ -593,9 +665,11 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		self._sync_pending_movement()
 		if self._pending_movement is None:
 			self._update_trusted_level(self._read_level())
+		self._log_cover("refresh")
 		self.async_write_ha_state()
 
 	async def async_open_cover(self, **kwargs: Any) -> None:
+		self._log_cover("command:open", logging.INFO)
 		self._begin_movement("opening")
 		c4_blind = self.create_api_object()
 		await c4_blind.open()
@@ -603,6 +677,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		await self._refresh_position_state()
 
 	async def async_close_cover(self, **kwargs: Any) -> None:
+		self._log_cover("command:close", logging.INFO)
 		self._begin_movement("closing")
 		c4_blind = self.create_api_object()
 		await c4_blind.close()
@@ -640,6 +715,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		await self._refresh_position_state()
 
 	async def async_stop_cover(self, **kwargs: Any) -> None:
+		self._log_cover("command:stop", logging.INFO)
 		c4_blind = self.create_api_object()
 		await c4_blind.stop()
 		self._clear_movement()
@@ -653,6 +729,7 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 				self._trusted_level = raw
 		elif raw is not None:
 			self._trusted_level = raw
+		self._log_cover("after_stop", logging.INFO)
 		self.async_write_ha_state()
 
 	async def async_update(self) -> None:
@@ -663,3 +740,4 @@ class Control4Cover(Control4Entity, CoverEntity):  # type: ignore[misc]
 		data = await director.get_item_variables(self._idx)
 		for item in data:
 			self._extra_state_attributes[item["varName"]] = item["value"]
+		self._log_cover("poll", polled={item["varName"]: item["value"] for item in data})
