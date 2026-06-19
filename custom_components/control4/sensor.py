@@ -10,7 +10,6 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -19,8 +18,8 @@ from .const import (
     CONF_DIRECTOR_ALL_ITEMS,
     CONF_ENTITY_PREPEND_PARENT_NAME,
     CONTROL4_ENTITY_TYPE,
+    Control4ConfigEntry,
     DEFAULT_ENTITY_PREPEND_PARENT_NAME,
-    DOMAIN,
 )
 from .director_utils import director_get_entry_variables
 
@@ -83,9 +82,9 @@ SENSORS: list[_SensorMap] = [
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant, entry: Control4ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    entry_data = hass.data[DOMAIN][entry.entry_id]
+    entry_data = entry.runtime_data
 
     director_all_items = entry_data[CONF_DIRECTOR_ALL_ITEMS]
     entities: list[Control4AttrSensor] = []
@@ -171,7 +170,7 @@ class Control4AttrSensor(Control4Entity, SensorEntity):  # type: ignore[misc]
     def __init__(
         self,
         entry_data: dict,
-        entry: ConfigEntry,
+        entry: Control4ConfigEntry,
         name: str,
         idx: int,
         device_name: str | None,

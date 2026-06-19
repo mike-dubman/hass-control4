@@ -1,0 +1,159 @@
+rules:
+  # Bronze
+  action-setup:
+    status: done
+    comment: services.yaml registers send_alarm_keystrokes; service handler set up in alarm_control_panel.py.
+  appropriate-polling:
+    status: exempt
+    comment: Integration is event-driven via Control4 websocket (director_utils.py / __init__.py), not polling.
+  brands: done
+  common-modules:
+    status: done
+    comment: Uses standard HA helpers (device_registry, entity_registry, aiohttp_client) rather than bespoke equivalents.
+  config-flow:
+    status: done
+    comment: config_flow.py implements ConfigFlow with async_step_user.
+  config-flow-test-coverage:
+    status: done
+    comment: tests/test_config_flow.py covers user-step success, invalid auth, cannot-connect, and already-configured abort.
+  dependency-transparency:
+    status: done
+    comment: manifest.json declares pyControl4==2.0.2 and the http dependency explicitly.
+  docs-actions:
+    status: done
+    comment: services.yaml documents the send_alarm_keystrokes action.
+  docs-high-level-description:
+    status: done
+    comment: README.md opens with a one-paragraph description of what the integration connects to and which entity types it exposes.
+  docs-installation-instructions:
+    status: done
+    comment: README.md documents HACS-based installation steps.
+  docs-removal-instructions:
+    status: done
+    comment: Standard HA config entry removal flow applies; no custom removal steps needed.
+  entity-event-setup:
+    status: done
+    comment: Control4Entity subscribes to websocket push events in async_added_to_hass.
+  entity-unique-id:
+    status: done
+    comment: Control4Entity sets self._attr_unique_id from the Control4 item id; inherited by all platforms.
+  has-entity-name:
+    status: done
+    comment: Control4Entity sets self._attr_has_entity_name based on the entity-prepend-parent-name option.
+  runtime-data:
+    status: done
+    comment: All per-entry state lives on entry.runtime_data (Control4ConfigEntry alias in const.py); hass.data[DOMAIN] is only used for the global HTTP export-view registration flag.
+  test-before-configure:
+    status: done
+    comment: Control4Validator authenticates and connects to the director before allowing config flow to proceed.
+  test-before-setup:
+    status: done
+    comment: _validate_input runs full auth/connect validation before async_create_entry.
+  unique-config-entry:
+    status: done
+    comment: Config flow sets unique_id from the controller MAC and aborts if already configured.
+
+  # Silver
+  action-exceptions:
+    status: todo
+    comment: Service call in alarm_control_panel.py does not raise HomeAssistantError/ServiceValidationError on failure.
+  config-entry-unloading:
+    status: done
+    comment: async_unload_entry unloads platforms, closes the websocket, and cancels background tasks.
+  docs-configuration-parameters:
+    status: done
+    comment: Options flow (async_step_configure) exposes and documents all configurable parameters.
+  entity-unavailable:
+    status: done
+    comment: Control4Entity toggles _attr_available based on websocket connection state.
+  integration-owner:
+    status: done
+    comment: manifest.json codeowners lists @mike-dubman and @lawtancool.
+  log-when-unavailable:
+    status: todo
+    comment: Disconnect is logged once as a warning, but no log entry is emitted when individual entities transition to unavailable.
+  parallel-updates:
+    status: todo
+    comment: No PARALLEL_UPDATES constant defined in any platform module.
+  reauthentication-flow:
+    status: done
+    comment: config_flow.py implements async_step_reauth and a dedicated reauth confirmation step.
+  test-coverage:
+    status: todo
+    comment: No automated tests exist anywhere in the repository.
+
+  # Gold
+  devices:
+    status: done
+    comment: Controller device is created via device_registry; Control4Entity.device_info links entities to it.
+  diagnostics:
+    status: todo
+    comment: No diagnostics.py module is present.
+  discovery:
+    status: done
+    comment: manifest.json declares ssdp discovery for c4:director.
+  discovery-update-info:
+    status: exempt
+    comment: Controller address does not change via discovery after initial setup; not applicable.
+  docs-data-update:
+    status: todo
+    comment: README does not describe the websocket-based update mechanism.
+  docs-examples:
+    status: todo
+    comment: No example configurations or automations are documented.
+  docs-known-limitations:
+    status: todo
+    comment: No known-limitations section in README.
+  docs-supported-devices:
+    status: done
+    comment: README lists supported Control4 device/platform types.
+  docs-supported-functions:
+    status: done
+    comment: README describes supported functions per platform.
+  docs-troubleshooting:
+    status: todo
+    comment: No troubleshooting guide is provided.
+  docs-use-cases:
+    status: todo
+    comment: README covers setup only, not example use cases.
+  dynamic-devices:
+    status: todo
+    comment: Devices/entities are enumerated once from the director export at setup; no runtime add/remove handling.
+  entity-category:
+    status: todo
+    comment: No entity uses _attr_entity_category (e.g. diagnostic/config) anywhere in the platform files.
+  entity-device-class:
+    status: done
+    comment: sensor.py and binary_sensor.py assign SensorDeviceClass/BinarySensorDeviceClass; climate.py sets HVAC modes.
+  entity-disabled-by-default:
+    status: todo
+    comment: No entities are registered with _attr_entity_registry_enabled_default = False.
+  entity-translations:
+    status: todo
+    comment: Entities rely on raw _attr_name strings; no _attr_translation_key or strings.json entity section.
+  exception-translations:
+    status: todo
+    comment: translations/en.json covers config flow strings only, not raised-exception translation keys.
+  icon-translations:
+    status: todo
+    comment: No icons.json file exists.
+  reconfiguration-flow:
+    status: todo
+    comment: config_flow.py has no async_step_reconfigure; users must remove and re-add the integration to change settings.
+  repair-issues:
+    status: todo
+    comment: No use of homeassistant.helpers.issue_registry to raise repair issues.
+  stale-devices:
+    status: exempt
+    comment: Device set is static per director export; no stale-device cleanup applicable.
+
+  # Platinum
+  async-dependency:
+    status: todo
+    comment: pyControl4 is not natively async; calls are wrapped with hass.async_add_executor_job.
+  inject-websession:
+    status: todo
+    comment: Uses aiohttp_client.async_get_clientsession internally instead of accepting an injected ClientSession.
+  strict-typing:
+    status: todo
+    comment: from __future__ import annotations is present, but type hints are incomplete (e.g. Any used broadly) and no py.typed marker exists.

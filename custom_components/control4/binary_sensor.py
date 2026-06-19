@@ -9,7 +9,6 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_call_later
 
@@ -20,6 +19,7 @@ from .const import (
     CONF_DYNALITE_ENABLED,
     CONF_CONTROLLER_UNIQUE_ID,
     CONTROL4_ENTITY_TYPE,
+    Control4ConfigEntry,
     DOMAIN,
 )
 from .director_utils import director_get_entry_variables
@@ -55,11 +55,11 @@ TRIGGER_RESET_SEC = 2
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities
+    hass: HomeAssistant, entry: Control4ConfigEntry, async_add_entities
 ):
     """Set up Control4 binary sensor from a config entry."""
 
-    entry_data = hass.data[DOMAIN][entry.entry_id]
+    entry_data = entry.runtime_data
     director_all_items = entry_data[CONF_DIRECTOR_ALL_ITEMS]
 
     # Get items from sensors category
@@ -206,7 +206,7 @@ class Control4BinarySensor(Control4Entity, BinarySensorEntity):  # type: ignore[
     def __init__(
         self,
         entry_data: dict,
-        entry: ConfigEntry,
+        entry: Control4ConfigEntry,
         name: str,
         idx: int,
         device_name: str | None,
@@ -334,7 +334,7 @@ class Control4DynaliteTriggerBinarySensor(BinarySensorEntity):
     def __init__(
         self,
         entry_data: dict,
-        entry: ConfigEntry,
+        entry: Control4ConfigEntry,
         name: str,
         idx: int,
         device_name: str | None,

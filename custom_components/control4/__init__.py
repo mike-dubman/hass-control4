@@ -40,6 +40,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .const import (
+    Control4ConfigEntry,
     CONF_ACCOUNT,
     CONF_ALARM_ARM_STATES,
     CONF_ALARM_AWAY_MODE,
@@ -103,13 +104,14 @@ PLATFORMS = [
     Platform.COVER,
 ]
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: Control4ConfigEntry) -> bool:
     """Set up Control4 from a config entry."""
     hass.data.setdefault(DOMAIN, {})
     if "_export_view_registered" not in hass.data[DOMAIN]:
         hass.http.register_view(Control4ExportView())
         hass.data[DOMAIN]["_export_view_registered"] = True
-    entry_data = hass.data[DOMAIN].setdefault(entry.entry_id, {})
+    entry_data: dict[str, Any] = {}
+    entry.runtime_data = entry_data
     config = entry.data
 
     await refresh_tokens(hass, entry)
@@ -205,11 +207,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: Control4ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    entry_data = hass.data[DOMAIN][entry.entry_id]
+    entry_data = entry.runtime_data
     if entry_data.get(CONF_DYNALITE_ENABLED):
         dynalite_module.stop_dynalite_listener(hass, entry.entry_id)
     _LOGGER.debug("Disconnecting C4Websocket for config entry unload")
@@ -218,7 +220,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry_data[CONF_CANCEL_TOKEN_REFRESH_CALLBACK]()
 
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
         _LOGGER.debug("Unloaded entry for %s", entry.entry_id)
 
     return unload_ok
@@ -230,10 +231,10 @@ async def update_listener(hass, config_entry):
     await hass.config_entries.async_reload(config_entry.entry_id)
 
 
-async def get_items_of_category(hass: HomeAssistant, entry: ConfigEntry, category: str):
+async def get_items_of_category(hass: HomeAssistant, entry: Control4ConfigEntry, category: str):
     """Return a list of all Control4 items with the specified category."""
     _LOGGER.debug("Getting items of category: %s", category)
-    director = hass.data[DOMAIN][entry.entry_id][CONF_DIRECTOR]
+    director = entry.runtime_data[CONF_DIRECTOR]
     try:
         return_list = await director.get_all_items_by_category(category)
         return return_list
@@ -246,7 +247,7 @@ async def get_items_of_category(hass: HomeAssistant, entry: ConfigEntry, categor
         return []
 
 
-async def refresh_tokens(hass: HomeAssistant, entry: ConfigEntry):
+async def refresh_tokens(hass: HomeAssistant, entry: Control4ConfigEntry):
     """Store updated authentication and director tokens in hass.data, and schedule next token refresh."""
     config = entry.data
     verify_ssl_session = aiohttp_client.async_get_clientsession(hass)
@@ -274,8 +275,8 @@ async def refresh_tokens(hass: HomeAssistant, entry: ConfigEntry):
         config[CONF_HOST], director_token_dict[CONF_TOKEN], no_verify_ssl_session
     )
 
-    _LOGGER.debug("Saving new account and director tokens in hass data")
-    entry_data = hass.data[DOMAIN][entry.entry_id]
+    _LOGGER.debug("Saving new account and director tokens in entry runtime data")
+    entry_data = entry.runtime_data
     entry_data[CONF_ACCOUNT] = account
     entry_data[CONF_DIRECTOR] = director
 
@@ -325,7 +326,7 @@ async def refresh_tokens(hass: HomeAssistant, entry: ConfigEntry):
 class C4WebsocketConnectionTracker:
     """Object that provides callables to manually refresh entity states if the Control4 Websocket is disconnected/reconnected."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(self, hass: HomeAssistant, entry: Control4ConfigEntry) -> None:
         """Initialize the state of the connection tracker object."""
         self.hass = hass
         self.entry = entry
@@ -340,9 +341,7 @@ class C4WebsocketConnectionTracker:
         _LOGGER.info("Websocket connection to Control4 reestablished")
 
         # Refresh state of entities so they are not unavailable anymore
-        item_callbacks = self.hass.data[DOMAIN][self.entry.entry_id][
-            CONF_WEBSOCKET
-        ].item_callbacks
+        item_callbacks = self.entry.runtime_data[CONF_WEBSOCKET].item_callbacks
         for item_id, callback in item_callbacks.items():
             item_attributes = await director_get_entry_variables(
                 self.hass, self.entry, item_id
@@ -364,9 +363,7 @@ class C4WebsocketConnectionTracker:
         self._was_disconnected = True
 
         # Set all entities to unavailable
-        item_callbacks = self.hass.data[DOMAIN][self.entry.entry_id][
-            CONF_WEBSOCKET
-        ].item_callbacks
+        item_callbacks = self.entry.runtime_data[CONF_WEBSOCKET].item_callbacks
         for item_id, callback in item_callbacks.items():
             await callback(item_id, False)
 
@@ -374,7 +371,7 @@ class C4WebsocketConnectionTracker:
 class RefreshTokensObject:
     """Object that provides a callable to refresh tokens."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(self, hass: HomeAssistant, entry: Control4ConfigEntry) -> None:
         """Initialize a RefreshTokensObject by storing the HomeAssistant and ConfigEntry objects required to run refresh_tokens()."""
         self.hass = hass
         self.entry = entry
@@ -396,7 +393,7 @@ class RefreshTokensObject:
         # exponential backoff with jitter
         delay = random.uniform(0, min(2**self.retries, RETRY_BACKOFF_MAX_SEC))
         _LOGGER.warning("Token refresh failed, trying again in %s seconds", delay)
-        entry_data = self.hass.data[DOMAIN][self.entry.entry_id]
+        entry_data = self.entry.runtime_data
         entry_data[CONF_CANCEL_TOKEN_REFRESH_CALLBACK] = async_call_later(
             hass=self.hass,
             delay=delay,
