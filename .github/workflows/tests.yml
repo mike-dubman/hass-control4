@@ -12,5 +12,8 @@ jobs:
         - uses: "actions/setup-python@v5"
           with:
             python-version: "3.12"
-        - run: "pip install -r requirements_test.txt"
+        - name: "Install integration requirements"
+          run: |
+            python -c "import json; print('\n'.join(json.load(open('custom_components/control4/manifest.json'))['requirements']))" > requirements_manifest.txt
+            pip install -r requirements_manifest.txt -r requirements_test.txt
         - run: "pytest tests/"
