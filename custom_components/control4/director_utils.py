@@ -4,11 +4,10 @@ from collections import defaultdict
 from collections.abc import Set
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
 
-from .const import CONF_DIRECTOR, CONF_DIRECTOR_ALL_ITEMS, DOMAIN
+from .const import CONF_DIRECTOR, CONF_DIRECTOR_ALL_ITEMS, Control4ConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,10 +26,10 @@ def director_has_dynalite_triggers(entry_data: dict[str, Any] | None) -> bool:
 
 
 async def director_get_entry_variables(
-    hass: HomeAssistant, entry: ConfigEntry, item_id: int
+    hass: HomeAssistant, entry: Control4ConfigEntry, item_id: int
 ) -> dict:
     """Retrieve variable data for Control4 entity."""
-    director = hass.data[DOMAIN][entry.entry_id][CONF_DIRECTOR]
+    director = entry.runtime_data[CONF_DIRECTOR]
     data = await director.get_item_variables(item_id)
 
     result = {}
@@ -41,10 +40,10 @@ async def director_get_entry_variables(
 
 
 async def update_variables_for_config_entry(
-    hass: HomeAssistant, entry: ConfigEntry, variable_names: Set[str]
+    hass: HomeAssistant, entry: Control4ConfigEntry, variable_names: Set[str]
 ) -> dict[int, dict[str, Any]]:
     """Retrieve data from the Control4 director."""
-    director = hass.data[DOMAIN][entry.entry_id][CONF_DIRECTOR]
+    director = entry.runtime_data[CONF_DIRECTOR]
     data = await director.get_all_item_variable_value(variable_names)
     result_dict: defaultdict[int, dict[str, Any]] = defaultdict(dict)
     for item in data:
@@ -53,10 +52,10 @@ async def update_variables_for_config_entry(
 
 
 async def director_get_item_properties(
-    hass: HomeAssistant, entry: ConfigEntry, item_id: int
+    hass: HomeAssistant, entry: Control4ConfigEntry, item_id: int
 ) -> dict[str, Any] | None:
     """Retrieve Director properties for a Control4 item (e.g. area/channel for Dynalite)."""
-    entry_data = (hass.data.get(DOMAIN) or {}).get(entry.entry_id)
+    entry_data = getattr(entry, "runtime_data", None)
     if not entry_data:
         return None
     director = entry_data.get(CONF_DIRECTOR)
