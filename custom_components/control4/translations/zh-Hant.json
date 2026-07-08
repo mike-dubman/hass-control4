@@ -22,9 +22,7 @@
   "options": {
     "step": {
       "init": {
-        "data": {
-          "scan_interval": "更新間隔秒數"
-        }
+        "data": {}
       }
     }
   }

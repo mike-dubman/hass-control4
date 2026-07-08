@@ -21,7 +21,6 @@ from homeassistant.const import (
     CONF_TOKEN,
     CONF_USERNAME,
     Platform,
-    CONF_SCAN_INTERVAL,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
@@ -65,7 +64,6 @@ from .const import (
     DEFAULT_ALARM_NIGHT_MODE,
     DEFAULT_ALARM_VACATION_MODE,
     DEFAULT_ENTITY_PREPEND_PARENT_NAME,
-    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     RETRY_BACKOFF_MAX_SEC,
     SCHEDULE_REFRESH_ADVANCE_SEC,
@@ -155,11 +153,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: Control4ConfigEntry) -> 
     entry_data[CONF_DIRECTOR_ALL_ITEMS] = director_all_items
 
     entry_data[CONF_UI_CONFIGURATION] = await entry_data[CONF_DIRECTOR].get_ui_configuration()
-
-    # Load options from config entry
-    entry_data[CONF_SCAN_INTERVAL] = entry.options.get(
-        CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-    )
 
     # Load options from config entry
     entry_data[CONF_ALARM_AWAY_MODE] = entry.options.get(

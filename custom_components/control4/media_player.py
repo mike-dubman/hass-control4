@@ -21,7 +21,6 @@ from homeassistant.components.media_player.const import (
     MediaPlayerState,
     MediaType,
 )
-from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -32,6 +31,7 @@ from .const import (
     CONF_DIRECTOR_ALL_ITEMS,
     CONF_UI_CONFIGURATION,
     Control4ConfigEntry,
+    DEFAULT_SCAN_INTERVAL,
 )
 from .director_utils import (
     director_get_entry_variables,
@@ -101,8 +101,6 @@ async def async_setup_entry(
         return
 
     entry_data = entry.runtime_data
-    scan_interval = entry_data[CONF_SCAN_INTERVAL]
-    _LOGGER.debug("Scan interval = %s", scan_interval)
 
     async def async_update_data() -> dict[int, dict[str, Any]]:
         """Fetch data from Control4 director."""
@@ -118,7 +116,7 @@ async def async_setup_entry(
         _LOGGER,
         name="room",
         update_method=async_update_data,
-        update_interval=timedelta(seconds=scan_interval),
+        update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
     )
 
     # Fetch initial data so we have data when entities subscribe

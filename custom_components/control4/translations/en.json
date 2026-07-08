@@ -40,9 +40,8 @@
       },
       "configure": {
         "title": "Configure options",
-        "description": "Scan interval, alarm modes, optional Dynalite TCP gateway, and entity naming.",
+        "description": "Alarm modes, optional Dynalite TCP gateway, and entity naming.",
         "data": {
-          "scan_interval": "Seconds between updates (media player only)",
           "alarm_home_mode": "Alarm arm home mode name",
           "alarm_away_mode": "Alarm arm away mode name",
           "alarm_night_mode": "Alarm arm night mode name",

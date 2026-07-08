@@ -4,8 +4,8 @@ rules:
     status: done
     comment: services.yaml registers send_alarm_keystrokes; service handler set up in alarm_control_panel.py.
   appropriate-polling:
-    status: exempt
-    comment: Integration is event-driven via Control4 websocket (director_utils.py / __init__.py), not polling.
+    status: done
+    comment: All entity platforms are websocket-push; the media player coordinator uses a fixed DEFAULT_SCAN_INTERVAL (5 s) hardcoded in media_player.py — not user-configurable.
   brands: done
   common-modules:
     status: done

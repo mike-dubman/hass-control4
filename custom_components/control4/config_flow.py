@@ -20,7 +20,6 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
     CONF_USERNAME,
-    CONF_SCAN_INTERVAL,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
@@ -57,10 +56,8 @@ from .const import (
     DEFAULT_ALARM_NIGHT_MODE,
     DEFAULT_ALARM_VACATION_MODE,
     DEFAULT_ENTITY_PREPEND_PARENT_NAME,
-    DEFAULT_SCAN_INTERVAL,
     DEFAULT_DYNALITE_PORT,
     DOMAIN,
-    MIN_SCAN_INTERVAL,
 )
 from .director_utils import (
     director_get_entry_variables,
@@ -660,15 +657,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             CONF_ENTITY_PREPEND_PARENT_NAME, DEFAULT_ENTITY_PREPEND_PARENT_NAME
         )
 
-        # Base schema: scan interval; alarm options only if we have a panel
-        schema_dict = {
-            vol.Optional(
-                CONF_SCAN_INTERVAL,
-                default=self._config_entry.options.get(
-                    CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                ),
-            ): vol.All(cv.positive_int, vol.Clamp(min=MIN_SCAN_INTERVAL)),
-        }
+        # Base schema: alarm options only if we have a panel
+        schema_dict = {}
         if has_security:
             schema_dict.update(
                 {

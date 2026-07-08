@@ -22,9 +22,7 @@
   "options": {
     "step": {
       "init": {
-        "data": {
-          "scan_interval": "Интервал обновления (в секундах)"
-        }
+        "data": {}
       }
     }
   }

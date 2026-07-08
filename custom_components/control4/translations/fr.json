@@ -22,9 +22,7 @@
   "options": {
     "step": {
       "init": {
-        "data": {
-          "scan_interval": "Secondes entre les mises à jour"
-        }
+        "data": {}
       }
     }
   }
