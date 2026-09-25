@@ -49,6 +49,7 @@ from .const import (
     CONF_ALARM_VACATION_MODE,
     CONF_CANCEL_TOKEN_REFRESH_CALLBACK,
     CONF_CONFIG_LISTENER,
+    CONF_CONTROLLER_DEVICE_ID,
     CONF_CONTROLLER_UNIQUE_ID,
     CONF_DIRECTOR,
     CONF_DIRECTOR_ALL_ITEMS,
@@ -77,6 +78,10 @@ from .director_utils import (
 from . import dynalite as dynalite_module
 
 _LOGGER = logging.getLogger(__name__)
+
+# Home Assistant 2026.8 added DeviceInfo["via_device_id"] and deprecated
+# DeviceInfo["via_device"]; older versions reject via_device_id as an unknown key.
+_DEVICE_INFO_SUPPORTS_VIA_DEVICE_ID = "via_device_id" in DeviceInfo.__annotations__
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -135,7 +140,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry_data[CONF_DIRECTOR_MODEL] = model.upper()
 
     device_registry = dr.async_get(hass)
-    device_registry.async_get_or_create(
+    controller_device = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry_data[CONF_CONTROLLER_UNIQUE_ID])},
         connections={(dr.CONNECTION_NETWORK_MAC, mac_address)},
@@ -144,6 +149,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         model=entry_data[CONF_DIRECTOR_MODEL],
         sw_version=entry_data[CONF_DIRECTOR_SW_VERSION],
     )
+    entry_data[CONF_CONTROLLER_DEVICE_ID] = controller_device.id
 
     # Store all items found on controller for platforms to use
     try:
@@ -404,6 +410,29 @@ class RefreshTokensObject:
         )
 
 
+def control4_device_info(
+    entry_data: dict,
+    device_id: int,
+    device_manufacturer: str | None,
+    device_model: str | None,
+    device_name: str | None,
+    device_area: str | None,
+) -> DeviceInfo:
+    """Return device info for a Control4 device linked to its controller."""
+    device_info = DeviceInfo(
+        identifiers={(DOMAIN, str(device_id))},
+        manufacturer=device_manufacturer,
+        model=device_model,
+        name=device_name,
+        suggested_area=device_area,
+    )
+    if _DEVICE_INFO_SUPPORTS_VIA_DEVICE_ID:
+        device_info["via_device_id"] = entry_data[CONF_CONTROLLER_DEVICE_ID]
+    else:
+        device_info["via_device"] = (DOMAIN, entry_data[CONF_CONTROLLER_UNIQUE_ID])  # type: ignore[typeddict-unknown-key]
+    return device_info
+
+
 class Control4Entity(Entity):
     """Base entity for Control4."""
 
@@ -522,13 +551,13 @@ class Control4Entity(Entity):
     @cached_property
     def device_info(self) -> DeviceInfo:
         """Return info of parent Control4 device of entity."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, str(self._device_id))},
-            manufacturer=self._device_manufacturer,
-            model=self._device_model,
-            name=self._device_name,
-            via_device=(DOMAIN, self._controller_unique_id),
-            suggested_area=self._device_area,
+        return control4_device_info(
+            self.entry_data,
+            self._device_id,
+            self._device_manufacturer,
+            self._device_model,
+            self._device_name,
+            self._device_area,
         )
 
     @property
@@ -572,13 +601,13 @@ class Control4CoordinatorEntity(CoordinatorEntity[Any]):
     @cached_property
     def device_info(self) -> DeviceInfo:
         """Return info of parent Control4 device of entity."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, str(self._device_id))},
-            manufacturer=self._device_manufacturer,
-            model=self._device_model,
-            name=self._device_name,
-            via_device=(DOMAIN, self._controller_unique_id),
-            suggested_area=self._device_area,
+        return control4_device_info(
+            self.entry_data,
+            self._device_id,
+            self._device_manufacturer,
+            self._device_model,
+            self._device_name,
+            self._device_area,
         )
 
     @property
