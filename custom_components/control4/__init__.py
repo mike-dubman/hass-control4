@@ -49,6 +49,7 @@ from .const import (
     CONF_ALARM_VACATION_MODE,
     CONF_CANCEL_TOKEN_REFRESH_CALLBACK,
     CONF_CONFIG_LISTENER,
+    CONF_CONTROLLER_DEVICE_ID,
     CONF_CONTROLLER_UNIQUE_ID,
     CONF_DIRECTOR,
     CONF_DIRECTOR_ALL_ITEMS,
@@ -135,7 +136,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry_data[CONF_DIRECTOR_MODEL] = model.upper()
 
     device_registry = dr.async_get(hass)
-    device_registry.async_get_or_create(
+    controller_device = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry_data[CONF_CONTROLLER_UNIQUE_ID])},
         connections={(dr.CONNECTION_NETWORK_MAC, mac_address)},
@@ -144,6 +145,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         model=entry_data[CONF_DIRECTOR_MODEL],
         sw_version=entry_data[CONF_DIRECTOR_SW_VERSION],
     )
+    entry_data[CONF_CONTROLLER_DEVICE_ID] = controller_device.id
 
     # Store all items found on controller for platforms to use
     try:
@@ -527,7 +529,7 @@ class Control4Entity(Entity):
             manufacturer=self._device_manufacturer,
             model=self._device_model,
             name=self._device_name,
-            via_device=(DOMAIN, self._controller_unique_id),
+            via_device_id=self.entry_data[CONF_CONTROLLER_DEVICE_ID],
             suggested_area=self._device_area,
         )
 
@@ -577,7 +579,7 @@ class Control4CoordinatorEntity(CoordinatorEntity[Any]):
             manufacturer=self._device_manufacturer,
             model=self._device_model,
             name=self._device_name,
-            via_device=(DOMAIN, self._controller_unique_id),
+            via_device_id=self.entry_data[CONF_CONTROLLER_DEVICE_ID],
             suggested_area=self._device_area,
         )
 
