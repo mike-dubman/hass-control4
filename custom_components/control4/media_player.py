@@ -21,14 +21,18 @@ from homeassistant.components.media_player.const import (
     MediaPlayerState,
     MediaType,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from . import Control4CoordinatorEntity
-from .const import CONF_DIRECTOR, CONF_DIRECTOR_ALL_ITEMS, CONF_UI_CONFIGURATION, DOMAIN
+from .const import (
+    CONF_DIRECTOR,
+    CONF_DIRECTOR_ALL_ITEMS,
+    CONF_UI_CONFIGURATION,
+    Control4ConfigEntry,
+)
 from .director_utils import (
     director_get_entry_variables,
     update_variables_for_config_entry,
@@ -78,9 +82,9 @@ class _RoomSource:
     group_members: set[str] = field(default_factory=set)
 
 
-async def get_rooms(hass: HomeAssistant, entry: ConfigEntry):
+async def get_rooms(hass: HomeAssistant, entry: Control4ConfigEntry):
     """Return a list of all Control4 rooms."""
-    director_all_items = hass.data[DOMAIN][entry.entry_id][CONF_DIRECTOR_ALL_ITEMS]
+    director_all_items = entry.runtime_data[CONF_DIRECTOR_ALL_ITEMS]
     return [
         item
         for item in director_all_items
@@ -89,14 +93,14 @@ async def get_rooms(hass: HomeAssistant, entry: ConfigEntry):
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant, entry: Control4ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up Control4 rooms from a config entry."""
     all_rooms = await get_rooms(hass, entry)
     if not all_rooms:
         return
 
-    entry_data = hass.data[DOMAIN][entry.entry_id]
+    entry_data = entry.runtime_data
     scan_interval = entry_data[CONF_SCAN_INTERVAL]
     _LOGGER.debug("Scan interval = %s", scan_interval)
 
@@ -122,7 +126,7 @@ async def async_setup_entry(
 
     items_by_id = {
         item["id"]: item
-        for item in hass.data[DOMAIN][entry.entry_id][CONF_DIRECTOR_ALL_ITEMS]
+        for item in entry.runtime_data[CONF_DIRECTOR_ALL_ITEMS]
     }
     item_to_parent_map = {
         k: item["parentId"]

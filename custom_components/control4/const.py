@@ -1,6 +1,12 @@
 """Constants for the Control4 integration."""
 
+from typing import Any
+
+from homeassistant.config_entries import ConfigEntry
+
 DOMAIN = "control4"
+
+type Control4ConfigEntry = ConfigEntry[dict[str, Any]]
 
 CONF_ALARM_HOME_MODE = "alarm_home_mode"
 DEFAULT_ALARM_HOME_MODE = "(not set)"
