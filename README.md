@@ -1,10 +1,10 @@
 # hass-control4 (vendor fork)
 
+This custom integration connects Home Assistant to a [Control4](https://www.control4.com/) home automation controller (Director), exposing the devices it manages as native Home Assistant entities. It supports lights, locks (relay-based locks only), alarm control panels, door/window/motion sensors (as binary sensors), thermostats, fans, relay devices (as switches), and blinds/shades (as covers, stateless open/close/stop), with live state updates pushed over a websocket connection to the Director rather than polling.
+
 Vendor fork of [lawtancool/hass-control4](https://github.com/lawtancool/hass-control4), maintained for faster delivery of features not yet merged upstream.
 
 **Versioning:** This fork uses **CalVer** (`YYYY.MM.DD.N`), not upstream semver. Example: `2026.06.13.1` = first build on 2026-06-13. See [Releases](https://github.com/mike-dubman/hass-control4/releases) for changelogs (including which upstream commit each build is based on).
-
-This custom integration for Home Assistant allows control of Control4 lights, locks (only locks that are relay-based in Control4), alarm control panels, door/window/motion sensors (as binary sensors), thermostats, fans, relay devices (as switches), and blinds/shades (as covers, stateless open/close/stop).
 
 ## Installation
 

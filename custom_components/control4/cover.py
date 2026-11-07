@@ -8,7 +8,6 @@ from homeassistant.components.cover import (
 	CoverEntity,
 	CoverEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -19,7 +18,7 @@ from .const import (
 	CONF_DIRECTOR,
 	CONF_DIRECTOR_ALL_ITEMS,
 	CONTROL4_ENTITY_TYPE,
-	DOMAIN,
+	Control4ConfigEntry,
 )
 from .director_utils import director_get_entry_variables
 
@@ -37,11 +36,11 @@ _COVER_PROXY_SUBSTRINGS = (
 
 async def async_setup_entry(
 	hass: HomeAssistant,
-	entry: ConfigEntry,
+	entry: Control4ConfigEntry,
 	async_add_entities: AddEntitiesCallback,
 ) -> None:
 	"""Set up Control4 covers from a config entry."""
-	entry_data = hass.data[DOMAIN][entry.entry_id]
+	entry_data = entry.runtime_data
 	all_items: list[dict[str, Any]] = entry_data[CONF_DIRECTOR_ALL_ITEMS]
 
 	# Build quick lookup by id for parent data

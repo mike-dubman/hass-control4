@@ -7,12 +7,11 @@ import logging
 from pyControl4.relay import C4Relay
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import Control4Entity
-from .const import CONF_DIRECTOR, CONF_DIRECTOR_ALL_ITEMS, CONTROL4_ENTITY_TYPE, DOMAIN
+from .const import CONF_DIRECTOR, CONF_DIRECTOR_ALL_ITEMS, CONTROL4_ENTITY_TYPE, Control4ConfigEntry
 from .director_utils import director_get_entry_variables
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,10 +25,10 @@ CONTROL4_RELAY_PROXY_TYPES = {
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant, entry: Control4ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up Control4 switches from a config entry."""
-    entry_data = hass.data[DOMAIN][entry.entry_id]
+    entry_data = entry.runtime_data
     director_all_items = entry_data[CONF_DIRECTOR_ALL_ITEMS]
 
     # Filter for relay devices, excluding lock relays which are handled by the lock platform
@@ -89,7 +88,7 @@ class Control4Switch(Control4Entity, SwitchEntity):
     def __init__(
         self,
         entry_data: dict,
-        entry: ConfigEntry,
+        entry: Control4ConfigEntry,
         name: str,
         idx: int,
         device_name: str | None,

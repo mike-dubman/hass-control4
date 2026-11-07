@@ -16,7 +16,6 @@ from homeassistant.components.alarm_control_panel.const import (
     AlarmControlPanelState,
     CodeFormat,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, entity_platform
 
@@ -30,12 +29,12 @@ from .const import (
     CONF_ALARM_VACATION_MODE,
     CONF_DIRECTOR,
     CONTROL4_ENTITY_TYPE,
+    Control4ConfigEntry,
     DEFAULT_ALARM_AWAY_MODE,
     DEFAULT_ALARM_CUSTOM_BYPASS_MODE,
     DEFAULT_ALARM_HOME_MODE,
     DEFAULT_ALARM_NIGHT_MODE,
     DEFAULT_ALARM_VACATION_MODE,
-    DOMAIN,
 )
 from .director_utils import director_get_entry_variables
 
@@ -71,7 +70,7 @@ CONTROL4_PARTITION_STATE_DATA_MAPPING = {
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities
+    hass: HomeAssistant, entry: Control4ConfigEntry, async_add_entities
 ):
     """Set up Control4 alarm control panel from a config entry."""
     # Register alarm_control_panel specific service
@@ -83,7 +82,7 @@ async def async_setup_entry(
             "send_alarm_keystrokes",
         )
 
-    entry_data = hass.data[DOMAIN][entry.entry_id]
+    entry_data = entry.runtime_data
 
     items_of_category = await get_items_of_category(hass, entry, CONTROL4_CATEGORY)
 
@@ -163,7 +162,7 @@ class Control4AlarmControlPanel(Control4Entity, AlarmControlPanelEntity):  # typ
     def __init__(
         self,
         entry_data: dict,
-        entry: ConfigEntry,
+        entry: Control4ConfigEntry,
         name: str,
         idx: int,
         device_name: str | None,

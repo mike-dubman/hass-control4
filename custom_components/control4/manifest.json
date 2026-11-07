@@ -13,6 +13,7 @@
   "integration_type": "hub",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/mike-dubman/hass-control4/issues",
+  "quality_scale": "bronze",
   "requirements": [
     "pyControl4==2.0.2"
   ],
