@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from functools import cached_property
 from typing import Any
 import random
+from xml.parsers.expat import ExpatError
 
 from aiohttp import client_exceptions
 from pyControl4.account import C4Account
@@ -79,6 +81,13 @@ from . import dynalite as dynalite_module
 
 _LOGGER = logging.getLogger(__name__)
 
+_RETRYABLE_SETUP_ERRORS = (
+    client_exceptions.ClientError,
+    asyncio.TimeoutError,
+    json.JSONDecodeError,
+    ExpatError,
+)
+
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
@@ -122,14 +131,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         controller_href = (await entry_data[CONF_ACCOUNT].get_account_controllers())[
             "href"
         ]
-    except (client_exceptions.ClientError, asyncio.TimeoutError) as exception:
+    except _RETRYABLE_SETUP_ERRORS as exception:
         raise ConfigEntryNotReady(exception) from exception
 
     try:
         entry_data[CONF_DIRECTOR_SW_VERSION] = await entry_data[
             CONF_ACCOUNT
         ].get_controller_os_version(controller_href)
-    except (client_exceptions.ClientError, asyncio.TimeoutError) as exception:
+    except _RETRYABLE_SETUP_ERRORS as exception:
         raise ConfigEntryNotReady(exception) from exception
 
     _, model, mac_address = entry_data[CONF_CONTROLLER_UNIQUE_ID].split("_", 3)
@@ -150,11 +159,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Store all items found on controller for platforms to use
     try:
         director_all_items = await entry_data[CONF_DIRECTOR].get_all_item_info()
-    except (client_exceptions.ClientError, asyncio.TimeoutError) as exception:
+    except _RETRYABLE_SETUP_ERRORS as exception:
         raise ConfigEntryNotReady(exception) from exception
     entry_data[CONF_DIRECTOR_ALL_ITEMS] = director_all_items
 
-    entry_data[CONF_UI_CONFIGURATION] = await entry_data[CONF_DIRECTOR].get_ui_configuration()
+    try:
+        entry_data[CONF_UI_CONFIGURATION] = await entry_data[
+            CONF_DIRECTOR
+        ].get_ui_configuration()
+    except _RETRYABLE_SETUP_ERRORS as exception:
+        raise ConfigEntryNotReady(exception) from exception
 
     # Load options from config entry
     entry_data[CONF_SCAN_INTERVAL] = entry.options.get(
@@ -258,7 +272,7 @@ async def refresh_tokens(hass: HomeAssistant, entry: ConfigEntry):
     )
     try:
         await account.get_account_bearer_token()
-    except (client_exceptions.ClientError, asyncio.TimeoutError) as exception:
+    except _RETRYABLE_SETUP_ERRORS as exception:
         raise ConfigEntryNotReady(exception) from exception
     except BadCredentials as exception:
         raise ConfigEntryAuthFailed(exception) from exception
@@ -266,7 +280,7 @@ async def refresh_tokens(hass: HomeAssistant, entry: ConfigEntry):
     controller_unique_id = config[CONF_CONTROLLER_UNIQUE_ID]
     try:
         director_token_dict = await account.get_director_bearer_token(controller_unique_id)
-    except (client_exceptions.ClientError, asyncio.TimeoutError) as exception:
+    except _RETRYABLE_SETUP_ERRORS as exception:
         raise ConfigEntryNotReady(exception) from exception
     no_verify_ssl_session = aiohttp_client.async_get_clientsession(
         hass, verify_ssl=False
