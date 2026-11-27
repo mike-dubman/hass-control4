@@ -15,7 +15,7 @@
   "issue_tracker": "https://github.com/mike-dubman/hass-control4/issues",
   "quality_scale": "bronze",
   "requirements": [
-    "pyControl4==2.0.2"
+    "pyControl4>=2.0.2"
   ],
   "ssdp": [
     {
