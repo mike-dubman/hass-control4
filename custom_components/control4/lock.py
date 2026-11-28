@@ -6,12 +6,11 @@ import logging
 from pyControl4.relay import C4Relay
 
 from homeassistant.components.lock import LockEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import Control4Entity, get_items_of_category
-from .const import CONF_DIRECTOR, CONTROL4_ENTITY_TYPE, DOMAIN
+from .const import CONF_DIRECTOR, CONTROL4_ENTITY_TYPE, Control4ConfigEntry
 from .director_utils import director_get_entry_variables
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,10 +19,10 @@ CONTROL4_CATEGORY = "locks"
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant, entry: Control4ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up Control4 locks from a config entry."""
-    entry_data = hass.data[DOMAIN][entry.entry_id]
+    entry_data = entry.runtime_data
 
     items_of_category = await get_items_of_category(hass, entry, CONTROL4_CATEGORY)
 

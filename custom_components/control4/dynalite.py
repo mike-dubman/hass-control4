@@ -9,7 +9,6 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import (
@@ -18,9 +17,9 @@ from .const import (
     CONF_DYNALITE_HOST,
     CONF_DYNALITE_PARSE_LAYOUT,
     CONF_DYNALITE_PORT,
+    Control4ConfigEntry,
     DEFAULT_DYNALITE_PARSE_LAYOUT,
     DEFAULT_DYNALITE_PORT,
-    DOMAIN,
     DYNALITE_PARSE_LAYOUT_DYNET,
 )
 from .director_utils import director_get_item_properties
@@ -29,13 +28,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def build_dynalite_event_map(
-    hass: HomeAssistant, entry: ConfigEntry
+    hass: HomeAssistant, entry: Control4ConfigEntry
 ) -> dict[tuple[int, int], int]:
     """Build (area, channel) -> C4 item_id from Director dynalite_trigger items and their properties."""
     result: dict[tuple[int, int], int] = {}
-    entry_data = (hass.data.get(DOMAIN) or {}).get(entry.entry_id)
-    if not entry_data:
-        return result
+    entry_data = entry.runtime_data
     all_items = entry_data.get(CONF_DIRECTOR_ALL_ITEMS) or []
     for item in all_items:
         if item.get("proxy") != "dynalite_trigger" or not item.get("id"):
@@ -76,7 +73,7 @@ async def build_dynalite_event_map(
 
 
 async def setup_dynalite_listener(
-    hass: HomeAssistant, entry: ConfigEntry, entry_data: dict[str, Any]
+    hass: HomeAssistant, entry: Control4ConfigEntry, entry_data: dict[str, Any]
 ) -> None:
     """Load Dynalite options, build event map, register callback, and start TCP listener.
     Call only when CONF_DYNALITE_ENABLED is True. Mutates entry_data.
@@ -116,10 +113,7 @@ async def setup_dynalite_listener(
 
     def _on_dynalite_event(area: int, channel: int, value: int) -> None:
         _LOGGER.debug("Dynalite event received: area=%s channel=%s value=%s", area, channel, value)
-        ed = (hass.data.get(DOMAIN) or {}).get(entry.entry_id)
-        if not ed:
-            _LOGGER.debug("Dynalite event: no entry_data for entry_id=%s", entry.entry_id)
-            return
+        ed = entry.runtime_data
         # Log once: examples of (area, channel) keys we receive from TCP
         received = ed.get("_dynalite_received_keys")
         if received is not None and not ed.get("_dynalite_received_keys_logged"):
@@ -174,7 +168,7 @@ async def setup_dynalite_listener(
         else:
             _LOGGER.debug("Dynalite event: entity %s has no set_triggered", item_id)
 
-    register_dynalite_callback(hass, entry.entry_id, _on_dynalite_event)
+    register_dynalite_callback(entry, _on_dynalite_event)
     config = {
         CONF_DYNALITE_ENABLED: True,
         CONF_DYNALITE_PARSE_LAYOUT: entry_data.get(
@@ -259,18 +253,18 @@ def parse_frame(
 
 
 def register_dynalite_callback(
-    hass: HomeAssistant,
-    entry_id: str,
+    entry: Control4ConfigEntry,
     callback: Callable[[int, int, int], None],
 ) -> None:
     """Register a callback for Dynalite events (area, channel, value)."""
-    hass.data.setdefault(DOMAIN, {})
-    entry_data = hass.data[DOMAIN].setdefault(entry_id, {})
-    entry_data["dynalite_on_event"] = callback
+    entry.runtime_data["dynalite_on_event"] = callback
 
 
 def _get_callback(hass: HomeAssistant, entry_id: str) -> Callable[[int, int, int], None] | None:
-    entry_data = (hass.data.get(DOMAIN) or {}).get(entry_id)
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if entry is None:
+        return None
+    entry_data = getattr(entry, "runtime_data", None)
     if not entry_data:
         return None
     return entry_data.get("dynalite_on_event")
@@ -393,12 +387,12 @@ async def _invoke_callback_async(
         _LOGGER.debug("Dynalite no callback registered for entry_id=%s", entry_id)
 
 
-def start_dynalite_listener(hass: HomeAssistant, entry: ConfigEntry, config: dict[str, Any]) -> None:
+def start_dynalite_listener(hass: HomeAssistant, entry: Control4ConfigEntry, config: dict[str, Any]) -> None:
     """Start the Dynalite TCP event listener."""
     entry_id = entry.entry_id
     if not config.get(CONF_DYNALITE_ENABLED):
         return
-    entry_data = hass.data.setdefault(DOMAIN, {}).setdefault(entry_id, {})
+    entry_data = entry.runtime_data
 
     stop_dynalite_listener(hass, entry_id)
 
@@ -426,7 +420,10 @@ def start_dynalite_listener(hass: HomeAssistant, entry: ConfigEntry, config: dic
 
 def stop_dynalite_listener(hass: HomeAssistant, entry_id: str) -> None:
     """Stop the Dynalite TCP listener."""
-    entry_data = (hass.data.get(DOMAIN) or {}).get(entry_id)
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if entry is None:
+        return
+    entry_data = getattr(entry, "runtime_data", None)
     if not entry_data:
         return
     task = entry_data.pop("dynalite_task", None)

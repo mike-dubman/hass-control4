@@ -22,14 +22,13 @@ from homeassistant.components.climate.const import (
 
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature, PRECISION_WHOLE
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from pyControl4.climate import C4Climate
 
 from . import Control4Entity, get_items_of_category
-from .const import CONF_DIRECTOR, CONTROL4_ENTITY_TYPE, DOMAIN
+from .const import CONF_DIRECTOR, CONTROL4_ENTITY_TYPE, Control4ConfigEntry
 from .director_utils import director_get_entry_variables
 
 _LOGGER = logging.getLogger(__name__)
@@ -108,10 +107,10 @@ SETUP_SETPOINT_DEADBAND_C = "setpoint_heatcool_deadband_c"
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant, entry: Control4ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up Control4 climate thermostats from a config entry."""
-    entry_data = hass.data[DOMAIN][entry.entry_id]
+    entry_data = entry.runtime_data
 
     director = entry_data[CONF_DIRECTOR]
 
@@ -175,7 +174,7 @@ class Control4Climate(Control4Entity, ClimateEntity):  # type: ignore[misc]
     def __init__(
         self,
         entry_data: dict,
-        entry: ConfigEntry,
+        entry: Control4ConfigEntry,
         name: str,
         idx: int,
         device_name: str | None,

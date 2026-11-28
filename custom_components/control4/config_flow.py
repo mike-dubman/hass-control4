@@ -82,17 +82,14 @@ async def build_control4_export_payload(
     hass: HomeAssistant, entry_id: str
 ) -> dict[str, Any] | None:
     """Build export payload (meta + items with variables and properties) for the given config entry."""
-    entry_data = (hass.data.get(DOMAIN) or {}).get(entry_id)
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if not entry:
+        return None
+    entry_data = getattr(entry, "runtime_data", None)
     if not entry_data:
         return None
     data = entry_data.get(CONF_DIRECTOR_ALL_ITEMS)
     if not data:
-        return None
-    entry = next(
-        (e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id == entry_id),
-        None,
-    )
-    if not entry:
         return None
 
     export_list = [dict(item) for item in data]
@@ -416,7 +413,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
     def _entry_data_ready(self):
         """Return True if integration entry data is loaded (table, apply, export, JSON download)."""
-        entry_data = self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id)
+        entry_data = getattr(self._config_entry, "runtime_data", None)
         return bool(entry_data and entry_data.get(CONF_DIRECTOR_ALL_ITEMS))
 
     @staticmethod
@@ -629,10 +626,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         """Handle the configure-options form (scan interval, alarm modes, Dynalite TCP, entity naming)."""
         if user_input is not None:
             _LOGGER.debug(user_input)
-            entry_data_submit = (
-                (self.hass.data.get(DOMAIN) or {}).get(self._config_entry.entry_id)
-                or {}
-            )
+            entry_data_submit = getattr(self._config_entry, "runtime_data", None) or {}
             has_dynalite = director_has_dynalite_triggers(entry_data_submit)
             enabled = bool(user_input.get(CONF_DYNALITE_ENABLED, False)) and has_dynalite
             if not enabled:
@@ -651,7 +645,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         # TODO: figure out how to accept empty strings to disable modes
         # TODO: figure out how to only show alarm options if a alarm_control_panel entity exists
-        self.entry_data = self.hass.data[DOMAIN][self._config_entry.entry_id]
+        self.entry_data = self._config_entry.runtime_data
 
         # Minimal approach: use existing cached arm states only
         arm_state_choices = set(self.entry_data.get(CONF_ALARM_ARM_STATES, [])) or {
