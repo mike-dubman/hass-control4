@@ -1,31 +1,29 @@
-"""Naming rules for generic Control4 Dynalite parent devices."""
+"""Naming rules for Control4 devices with a single entity child."""
 
 from collections.abc import Iterable, Mapping
 from typing import Any
 
 
-GENERIC_DYNALITE_DEVICE_NAMES = frozenset(
-    {"Dynalite Switch", "Dynalite Dimmer", "Dynalite Blinds"}
-)
-
-
-def single_entity_dynalite_name(
-    parent_name: str | None,
+def single_entity_child_name(
     parent_id: int,
     item_id: int,
     items: Iterable[Mapping[str, Any]],
+    device_type: int,
     entity_type: int,
 ) -> str | None:
-    """Return the sole child name of a generic Dynalite parent, if unambiguous."""
-    if parent_name not in GENERIC_DYNALITE_DEVICE_NAMES:
+    """Return the sole entity child name of a Control4 device, if unambiguous."""
+    parent = None
+    child = None
+    for item in items:
+        if item.get("id") == parent_id:
+            parent = item
+        if item.get("parentId") == parent_id and item.get("type") == entity_type:
+            if child is not None:
+                return None
+            child = item
+    if parent is None or parent.get("type") != device_type or child is None:
         return None
-
-    children = [
-        item
-        for item in items
-        if item.get("parentId") == parent_id and item.get("type") == entity_type
-    ]
-    if len(children) != 1 or children[0].get("id") != item_id:
+    if child.get("id") != item_id:
         return None
-    name = children[0].get("name")
+    name = child.get("name")
     return name if isinstance(name, str) and name.strip() else None

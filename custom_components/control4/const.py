@@ -33,6 +33,7 @@ DEFAULT_ENTITY_PREPEND_PARENT_NAME = True
 
 CONF_CONFIG_LISTENER = "config_listener"
 
+CONTROL4_DEVICE_TYPE = 6
 CONTROL4_ENTITY_TYPE = 7
 
 # Dynalite gateway listener (TCP only)

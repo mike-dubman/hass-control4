@@ -61,6 +61,7 @@ from .const import (
     CONF_ENTITY_PREPEND_PARENT_NAME,
     CONF_WEBSOCKET,
     CONF_UI_CONFIGURATION,
+    CONTROL4_DEVICE_TYPE,
     CONTROL4_ENTITY_TYPE,
     DEFAULT_ALARM_AWAY_MODE,
     DEFAULT_ALARM_CUSTOM_BYPASS_MODE,
@@ -74,7 +75,7 @@ from .const import (
     SCHEDULE_REFRESH_ADVANCE_SEC,
 )
 from .config_flow import Control4ExportView
-from .device_naming import single_entity_dynalite_name
+from .device_naming import single_entity_child_name
 from .director_utils import (
     director_get_entry_variables,
     director_has_dynalite_triggers,
@@ -447,19 +448,19 @@ class Control4Entity(Entity):
             CONF_ENTITY_PREPEND_PARENT_NAME, DEFAULT_ENTITY_PREPEND_PARENT_NAME
         )
         short_device_name = (
-            single_entity_dynalite_name(
-                device_name,
+            single_entity_child_name(
                 device_id,
                 idx,
                 entry_data.get(CONF_DIRECTOR_ALL_ITEMS, ()),
+                CONTROL4_DEVICE_TYPE,
                 CONTROL4_ENTITY_TYPE,
             )
             if not prepend
             else None
         )
-        self._primary_dynalite_entity = short_device_name == name
+        self._primary_child_entity = short_device_name == name
         # A single-entity device uses its device name as the primary entity name.
-        self._attr_name = None if self._primary_dynalite_entity else name
+        self._attr_name = None if self._primary_child_entity else name
         self._attr_unique_id = str(idx)
         self._idx = idx
         self._controller_unique_id = entry_data[CONF_CONTROLLER_UNIQUE_ID]
@@ -473,7 +474,7 @@ class Control4Entity(Entity):
         self._extra_state_attributes["parent item id"] = device_id
         # Disable polling
         self._attr_should_poll = False
-        self._attr_has_entity_name = prepend or self._primary_dynalite_entity
+        self._attr_has_entity_name = prepend or self._primary_child_entity
 
     async def async_added_to_hass(self):
         """Add entity to hass. Register Websockets callbacks to receive entity state updates from Control4."""
@@ -490,7 +491,7 @@ class Control4Entity(Entity):
         registry = er.async_get(self.hass)
         reg_entry = registry.async_get(self.entity_id)
         if reg_entry is not None:
-            if self._primary_dynalite_entity:
+            if self._primary_child_entity:
                 if reg_entry.name == self._item_name:
                     registry.async_update_entity(self.entity_id, name=None)
             elif not prepend:
