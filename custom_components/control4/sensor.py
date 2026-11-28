@@ -205,6 +205,8 @@ class Control4AttrSensor(Control4Entity, SensorEntity):  # type: ignore[misc]
         if not entry_data.get(
             CONF_ENTITY_PREPEND_PARENT_NAME, DEFAULT_ENTITY_PREPEND_PARENT_NAME
         ):
+            self._primary_dynalite_entity = False
+            self._attr_has_entity_name = False
             self._attr_name = f"{item_display_name} {sensor_map.name_suffix}".strip()
 
     async def async_added_to_hass(self) -> None:
